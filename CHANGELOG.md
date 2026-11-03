@@ -11,6 +11,8 @@ All notable project changes are documented here.
 - Added read-only Linux `/proc/net` discovery for TCP listeners and bound UDP sockets.
 - Added unit tests for configuration validation and proc-table parsing.
 - Added CI automation for supported Python versions.
+- Added a versioned TOML loader, profile registry, example config, and config validation CLI.
+- Added configuration schema documentation and a durable roadmap/handoff document.
 
 ### Security
 - Discovery performs no active network probes, shell execution, firewall changes, or traffic interception.
