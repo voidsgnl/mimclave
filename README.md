@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive platform designed to place controlled deceptio
 
 ## Project status
 
-M1 configuration and read-only discovery is complete. M2 includes a pure HTTP response engine, a structured credential-conscious session-event model, and opt-in HTTP/HTTPS transports restricted to loopback addresses. HTTPS requires an explicitly provisioned server-side TLS context. CI verifies M2 on Python 3.12–3.14 (63 tests and Ruff passed); M3's hash-chained JSONL evidence store, idempotent event appends, and external checkpoint interface are CI-verified (82 tests and Ruff passed on Python 3.12–3.14). Verified export is implemented; a production remote checkpoint provider and automatic retention are not yet included. The transports do not forward traffic. No production traffic interception or sandbox execution is implemented. Do not deploy MIRAGE in front of production services.
+M1 configuration and read-only discovery is complete. M2 includes a pure HTTP response engine, a structured credential-conscious session-event model, and opt-in HTTP/HTTPS transports restricted to loopback addresses. HTTPS requires an explicitly provisioned server-side TLS context. CI verifies M2 on Python 3.12–3.14 (63 tests and Ruff passed); M3's hash-chained JSONL evidence store, idempotent event appends, verified export, and HTTPS checkpoint client are CI-verified (93 tests and Ruff passed on Python 3.12–3.14). A separately hosted checkpoint service and automatic retention are not yet included. The transports do not forward traffic. No production traffic interception or sandbox execution is implemented. Do not deploy MIRAGE in front of production services.
 
 ## Core principles
 
