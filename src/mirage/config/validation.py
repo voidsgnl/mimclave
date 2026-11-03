@@ -37,7 +37,11 @@ def validate_mapping(
     if profile is None:
         raise ConfigurationError(f"unknown decoy profile: {mapping.profile_id}")
 
-    expected = DEFAULT_PORT_PROTOCOLS.get(mapping.listener.port) if mapping.listener.transport == "tcp" else None
+    expected = (
+        DEFAULT_PORT_PROTOCOLS.get(mapping.listener.port)
+        if mapping.listener.transport == "tcp"
+        else None
+    )
     if expected is None or profile.protocol == expected:
         return []
 
