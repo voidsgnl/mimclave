@@ -74,3 +74,52 @@ def test_registry_rejects_protocol_port_mismatch(tmp_path: Path) -> None:
     invalid = VALID_CONFIG.replace('protocol = "https"', 'protocol = "http"')
     registry = ProfileRegistry(load_config(write_config(tmp_path, invalid)))
     assert registry.validate().issues[0].code == "protocol_port_mismatch"
+
+def test_registry_rejects_duplicate_profile_ids(tmp_path: Path) -> None:
+    duplicated = VALID_CONFIG + """
+[[profiles]]
+id = "web-front"
+name = "Duplicate profile"
+protocol = "https"
+service_name = "nginx"
+service_version = "1.24"
+hostname = "duplicate.example.test"
+"""
+    config = load_config(write_config(tmp_path, duplicated))
+    with pytest.raises(ValueError, match="duplicate decoy profile"):
+        ProfileRegistry(config)
+
+
+def test_registry_rejects_duplicate_protected_service_ids(tmp_path: Path) -> None:
+    duplicated = VALID_CONFIG + """
+[[protected_services]]
+id = "real-app"
+endpoint = { host = "127.0.0.1", port = 9001 }
+"""
+    registry = ProfileRegistry(load_config(write_config(tmp_path, duplicated)))
+    with pytest.raises(ValueError, match="duplicate protected service id"):
+        registry.validate()
+
+
+def test_override_requires_a_reason_in_toml(tmp_path: Path) -> None:
+    invalid = VALID_CONFIG.replace(
+        'listener = { host = "0.0.0.0", port = 443, transport = "tcp" }',
+        'listener = { host = "0.0.0.0", port = 443, transport = "tcp" }\n'
+        'allow_nonstandard_protocol = true',
+    ).replace('protocol = "https"', 'protocol = "http"')
+    with pytest.raises(ConfigLoadError, match="override_reason"):
+        load_config(write_config(tmp_path, invalid))
+
+
+def test_udp_mapping_does_not_apply_tcp_port_conventions(tmp_path: Path) -> None:
+    udp_config = VALID_CONFIG.replace(
+        'listener = { host = "0.0.0.0", port = 443, transport = "tcp" }',
+        'listener = { host = "0.0.0.0", port = 443, transport = "udp" }',
+    ).replace('protocol = "https"', 'protocol = "custom"')
+    registry = ProfileRegistry(load_config(write_config(tmp_path, udp_config)))
+    assert registry.validate().issues == ()
+
+
+def test_reject_malformed_toml(tmp_path: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="cannot read TOML"):
+        load_config(write_config(tmp_path, 'version = "unterminated'))
