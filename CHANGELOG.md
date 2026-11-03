@@ -17,6 +17,11 @@ All notable project changes are documented here.
 ### Fixed
 - Corrected packaging metadata and resolved CI lint findings.
 
+### Added
+- Started M2 with a transport-free HTTP decoy engine, bounded request parser, static fabricated routes, and safety tests.
+- Added protocol simulation design and security-boundary documentation.
+
 ### Security
+- Decoy identity strings reject control characters; HTTP simulation does not reflect untrusted Host headers, access host files, execute commands, or forward to protected services.
 - Discovery performs no active network probes, shell execution, firewall changes, or traffic interception.
 - Real-service inventory remains separate from decoy identity configuration.
