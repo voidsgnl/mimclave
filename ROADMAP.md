@@ -105,7 +105,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - .github/workflows/python.yml — CI matrix.
 
 ## Resume here — exact next steps
-1. Review TLS handshake timeout and failed-handshake resource handling; add regression tests if gaps are found.
+1. Harden TLS transport defaults: require TLS 1.2 or newer and test that incomplete TLS handshakes are closed at the configured timeout.
 2. Specify durable, tamper-evident telemetry storage, append semantics, retention, and failure behaviour before M3 implementation.
 3. Design the M3 evidence pipeline so storage failure cannot cause an unrecorded decoy response; define bounded queue/backpressure behaviour.
 4. Do not add public binding, production traffic interception, or decoy execution until isolation and independent fail-closed enforcement are implemented and tested.
@@ -120,3 +120,4 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Corrected a Ruff import-style finding; GitHub Actions run #57 passed 51 tests and Ruff on Python 3.12–3.14. Structured telemetry model is now CI-verified.
 - 2026-11-03: Added the opt-in loopback-only HTTP server with bounded header reads, request timeouts, active-connection limits, event-sink-before-response behaviour, and explicit shutdown. GitHub Actions run #64 passed 57 tests and Ruff on Python 3.12–3.14.
 \n- 2026-11-03: Hardened the loopback HTTP transport: oversized headers are rejected, and telemetry sink exceptions close the connection without sending a decoy response. Added regression tests; CI verification pending.\n\n- 2026-11-03: Fixed escaped line endings in the two new transport tests; CI run #76 passed 59 tests and Ruff on Python 3.12–3.14. Oversized-header and telemetry-sink-failure behaviour is now verified.\n\n- 2026-11-03: Added `HttpsDecoyServer` using an explicit caller-supplied server-side TLS context, HTTPS profile enforcement, loopback-only binding, and bounded TLS handshake time. Added tests for trusted handshake, untrusted certificate rejection, and configuration restrictions; CI verification pending.\n\n- 2026-11-03: Fixed legacy HTTP-only expectation after extending the shared HTTP application engine to accept HTTPS profiles, and corrected TLS context validation test expectations. CI run #89 passed 62 tests and Ruff on Python 3.12–3.14; loopback HTTPS handshake and certificate verification are now verified.\n
+- 2026-11-03: Tightened HTTPS server-context validation to require TLS 1.2 or newer. Added regression coverage for rejecting weaker TLS policy and closing TCP clients that never send a TLS ClientHello at the configured handshake timeout. CI verification pending.
