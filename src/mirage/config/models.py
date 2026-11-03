@@ -48,8 +48,11 @@ class DecoyProfile:
 
     def __post_init__(self) -> None:
         for field_name in ("profile_id", "name", "service_name", "service_version", "hostname"):
-            if not getattr(self, field_name).strip():
+            value = getattr(self, field_name)
+            if not value.strip():
                 raise ValueError(f"{field_name} must not be empty")
+            if any(ord(char) < 32 or ord(char) == 127 for char in value):
+                raise ValueError(f"{field_name} must not contain control characters")
 
 
 @dataclass(frozen=True, slots=True)
