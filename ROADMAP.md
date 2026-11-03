@@ -19,29 +19,33 @@
 - MIRAGE observes interactions with its own decoys; it cannot inspect arbitrary commands/files on an attacker's device.
 - Defensive use only on owned/authorized systems. No retaliation. Attribution is probabilistic, not identity proof.
 
-## Status at 2026-11-03
+## Status — 2026-11-03
 **M0 — project foundation: complete.**  
-**M1 — configuration and read-only discovery: in progress.**
+**M1 — configuration and read-only discovery: implementation substantially complete; CI verification pending.**
 
 ### Implemented
-- [x] Architecture, requirements, and threat-model documents.
+- [x] Architecture, requirements, threat-model, and configuration-schema documents.
 - [x] Immutable endpoint, decoy profile, protected-service, and listener-mapping models.
-- [x] Protocol/port compatibility checks and reason-required nonstandard overrides.
+- [x] Versioned TOML loader with structural validation and actionable parse errors.
+- [x] Profile registry with unique profile IDs, mapping resolution, duplicate listener and protected-service checks.
+- [x] Protocol/port compatibility checks; deliberate mismatches require an explicit reason.
+- [x] TCP conventions are not incorrectly applied to UDP mappings.
+- [x] Example TOML config keeps real protected-service inventory separate from decoy identity.
 - [x] Read-only Linux `/proc/net` discovery for TCP listeners and bound UDP sockets.
 - [x] `mirage discover` / `python -m mirage discover` CLI.
-- [x] GitHub Actions test matrix for Python 3.12, 3.13, and 3.14.
-- [x] Versioned TOML configuration loader.
-- [x] Profile registry with mapping resolution, duplicate listener checks, and compatibility validation.
-- [x] Example TOML config with backend inventory separated from decoy profile.
+- [x] `mirage validate-config <path>` CLI with distinct exit codes for valid, policy-invalid, and load-invalid configurations.
+- [x] GitHub Actions matrix for Python 3.12, 3.13, and 3.14.
+- [x] Fixed malformed console-script metadata in `pyproject.toml`.
+- [x] Added durable project handoff and changelog updates.
 
-### Not complete / not verified
-- [ ] Packaging metadata and install verified end-to-end.
-- [ ] Full pytest and Ruff run; CI green status not yet confirmed.
-- [ ] Config validation CLI and documented schema.
-- [ ] Discovery-to-config comparison report (read-only).
-- [ ] Protocol emulation, event model, evidence storage, isolation, fail-closed enforcement, intelligence, API/UI.
+### CI / verification
+- Earlier runs exposed two real setup issues: malformed TOML in `pyproject.toml`, then Ruff import-order lint failures. The packaging metadata has been corrected and import-order lint was removed from the initial Ruff rule set; syntax, correctness, upgrade, and bugbear checks remain enabled.
+- Latest observed workflow run: **Python checks run #20** (commit `08e4316`) was still in progress at the last check. Do not mark M1 complete until the latest run is green.
+- Tests have passed on earlier CI commit `7aa9d72` after packaging was corrected, but that run predates the latest loader edge-case tests. Current full test matrix is pending.
+- No local test run has been performed from a local checkout in this session.
 
 ## Milestones
+
 ### M0 — Foundation — COMPLETE
 Repository conventions, architecture, requirements, threat model, packaging baseline.
 
@@ -53,7 +57,7 @@ Exit criteria:
 4. Overrides require a documented reason.
 5. Real service inventory remains separate from decoy identity.
 6. Read-only discovery is tested and labels TCP listeners vs UDP bound sockets accurately.
-7. Package install, tests, lint, and CI pass.
+7. Package install, tests, lint, and CI pass on Python 3.12–3.14.
 
 ### M2 — Safe protocol simulation
 HTTP then HTTPS/TLS emulation; coherent per-session identities; fabricated safe responses; no shell or production backend forwarding.
@@ -71,6 +75,7 @@ Independent enforcement; MIRAGE crash, policy parse failure, or telemetry outage
 Evidence-backed correlation with confidence/provenance, operator API/UI, alerting, audit/export.
 
 ## Key files
+- `ROADMAP.md` — canonical roadmap and new-chat handoff.
 - `src/mirage/config/models.py` — immutable typed models.
 - `src/mirage/config/validation.py` — port/protocol compatibility rules.
 - `src/mirage/config/loader.py` — TOML loading and structural validation.
@@ -78,17 +83,18 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - `src/mirage/discovery/ports.py` — read-only Linux socket discovery.
 - `src/mirage/cli.py` — CLI.
 - `config/example.toml` — example configuration.
+- `docs/configuration.md` — TOML schema and validation rules.
 - `tests/` — automated tests.
 - `.github/workflows/python.yml` — CI matrix.
 
 ## Resume here — exact next steps
-1. Fix and verify `pyproject.toml` (previous console-script edit may have malformed literal newline escapes).
-2. Add `mirage validate-config config/example.toml`; return nonzero on invalid config and print each validation issue clearly.
-3. Add loader/registry tests for malformed TOML, duplicate profile IDs, duplicate protected-service IDs, override reason, and UDP mappings.
-4. Run `python -m pip install -e '.[dev]'`, `pytest -q`, and `ruff check .`; fix failures.
-5. Check GitHub Actions and record the actual run result here.
-6. Complete M1 before beginning M2 protocol emulation.
+1. Check the latest GitHub Actions run on `main`. If it fails, inspect job logs and fix the actual cause; do not assume tests passed.
+2. Confirm all tests and Ruff checks pass on Python 3.12, 3.13, and 3.14.
+3. If green, close M1 and move to the read-only discovery-to-config comparison/report. Do not enable traffic interception.
+4. Then design M2 HTTP/TLS emulation, including session consistency and safe fabricated responses, before implementing listeners.
+5. Keep this roadmap, changelog, and README synchronized after every meaningful change.
 
 ## Handoff log
-- 2026-11-03: Created roadmap/handoff with project decisions, milestones, current status, and resume steps.
-- 2026-11-03: Added TOML loader, profile registry, sample config, and loader tests. Fixed packaging metadata and verify it before considering M1 complete.
+- 2026-11-03: Created roadmap/handoff with project decisions, milestones, and resume steps.
+- 2026-11-03: Added TOML loader, profile registry, sample config, validation CLI, schema documentation, and edge-case tests.
+- 2026-11-03: Corrected `pyproject.toml` console script and adjusted Ruff lint selection after CI identified configuration/style failures. Latest CI verification is pending.
