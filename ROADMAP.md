@@ -82,7 +82,7 @@ Repository conventions, architecture, requirements, threat model, packaging base
 ### M1 — Configuration and discovery — COMPLETE
 Versioned config, decoy profile registry, protocol compatibility, read-only host discovery, CLI, docs, tests, and green CI matrix.
 
-### M2 — Safe protocol simulation — IN PROGRESS
+### M2 — Safe protocol simulation — COMPLETE
 HTTP then HTTPS/TLS emulation; coherent per-session identities; fabricated safe responses; no shell or production backend forwarding.
 
 ### M3 — Telemetry and evidence — IN PROGRESS
@@ -133,11 +133,11 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [ ] Implement a production external anchor adapter with independently protected durable state; an in-memory test double is not a production anchor.
 
 ## Resume here — exact next steps
-1. [x] Define safe idempotency semantics: stable event ID retries return the original receipt, conflicting payload reuse is rejected, and duplicate IDs in a log invalidate the log.
-2. [x] Implement an external checkpoint interface with monotonic generations, compare-and-set publication, and anchored-prefix verification. Production remote anchor adapter remains open.
-3. Define evidence export and retention semantics that preserve chain continuity and checkpoint provenance.
-4. [x] Add a reproducible local benchmark for append and full-chain verification; collect representative measurements on target Linux hardware before deciding whether queue/backpressure or indexing is needed.
-5. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
+1. Implement a production `CheckpointAnchor` adapter backed by independently protected durable storage; do not substitute a same-host sidecar and call it external.
+2. Define segmented log rotation/retention with checkpoint handoff. Current exports preserve the complete genesis-linked chain; automatic pruning/deletion is intentionally absent.
+3. Run `python scripts/benchmark_evidence_store.py --events 1000` (and larger representative sizes) on target Linux storage; record results before considering indexing or bounded async batching.
+4. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
+5. Update this roadmap and CHANGELOG after each meaningful change.
 
 ## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
@@ -172,3 +172,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Added `scripts/benchmark_evidence_store.py` and a 10-event CI smoke test. The script reports append and full-verification throughput using a temporary file; target-hardware measurements remain pending. CI verification pending.
 
 - 2026-11-03: Benchmark smoke test passed in CI run #151 on Python 3.12–3.14. The short CI sample is only an execution check, not a performance baseline; target Linux measurements remain pending.
+
+- 2026-11-03: Corrected the handoff to mark M2 complete and clarify remaining M3 work: production external anchor adapter, segmented retention/rotation, and target-hardware performance measurements. The benchmark CI smoke test is verified but is not a performance baseline.
