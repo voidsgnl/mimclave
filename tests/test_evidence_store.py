@@ -5,6 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from mirage.telemetry.checkpoints import (
+    CheckpointConflictError,
+    CheckpointError,
+    EvidenceCheckpoint,
+)
 from mirage.telemetry.events import SessionEventFactory
 from mirage.telemetry.store import (
     EvidenceEventConflictError,
@@ -145,3 +150,96 @@ def test_reusing_event_id_with_different_payload_is_rejected(tmp_path) -> None:
         store.append(conflicting)
 
     assert store.verify().record_count == 1
+
+
+
+class MemoryCheckpointAnchor:
+    """Test double; production anchors must live outside the log trust boundary."""
+
+    def __init__(self) -> None:
+        self.checkpoint: EvidenceCheckpoint | None = None
+
+    def read(self) -> EvidenceCheckpoint | None:
+        return self.checkpoint
+
+    def compare_and_set(
+        self,
+        *,
+        expected_generation: int | None,
+        checkpoint: EvidenceCheckpoint,
+    ) -> None:
+        current_generation = (
+            self.checkpoint.generation if self.checkpoint is not None else None
+        )
+        if current_generation != expected_generation:
+            raise CheckpointConflictError("checkpoint generation changed")
+        expected_next = 1 if current_generation is None else current_generation + 1
+        if checkpoint.generation != expected_next:
+            raise CheckpointConflictError("checkpoint generation is not monotonic")
+        self.checkpoint = checkpoint
+
+
+def test_external_checkpoint_tracks_verified_log_prefix(tmp_path) -> None:
+    store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+    anchor = MemoryCheckpointAnchor()
+    store.append(make_event(1))
+
+    first = store.publish_checkpoint(anchor)
+    assert first.generation == 1
+    assert first.record_count == 1
+    assert store.verify_checkpoint(anchor) == first
+
+    store.append(make_event(2))
+    second = store.publish_checkpoint(anchor)
+    assert second.generation == 2
+    assert second.record_count == 2
+    assert store.verify_checkpoint(anchor) == second
+
+
+def test_external_checkpoint_detects_log_truncation(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    store = JsonlEvidenceStore(path)
+    anchor = MemoryCheckpointAnchor()
+    store.append(make_event(1))
+    store.append(make_event(2))
+    checkpoint = store.publish_checkpoint(anchor)
+
+    lines = path.read_bytes().splitlines(keepends=True)
+    path.write_bytes(lines[0])
+
+    with pytest.raises(CheckpointError, match="shorter"):
+        store.verify_checkpoint(anchor)
+    assert checkpoint.record_count == 2
+
+
+def test_external_checkpoint_detects_replaced_log_prefix(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    store = JsonlEvidenceStore(path)
+    anchor = MemoryCheckpointAnchor()
+    store.append(make_event(1))
+    store.publish_checkpoint(anchor)
+
+    replacement = JsonlEvidenceStore(tmp_path / "replacement.jsonl")
+    replacement.append(make_event(99))
+    path.write_bytes(replacement.path.read_bytes())
+    path.chmod(0o600)
+
+    with pytest.raises(CheckpointError, match="does not match"):
+        store.verify_checkpoint(anchor)
+
+
+def test_external_checkpoint_compare_and_set_conflict_is_propagated(tmp_path) -> None:
+    store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+    store.append(make_event(1))
+
+    class ConflictingAnchor(MemoryCheckpointAnchor):
+        def compare_and_set(
+            self,
+            *,
+            expected_generation: int | None,
+            checkpoint: EvidenceCheckpoint,
+        ) -> None:
+            raise CheckpointConflictError("concurrent publisher won")
+
+    with pytest.raises(CheckpointConflictError, match="concurrent publisher"):
+        store.publish_checkpoint(ConflictingAnchor())
