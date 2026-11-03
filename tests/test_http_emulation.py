@@ -60,3 +60,15 @@ def test_http_decoy_rejects_https_profile() -> None:
     profile = DecoyProfile("tls", "TLS", Protocol.HTTPS, "nginx", "1.24", "host")
     with pytest.raises(ValueError, match="protocol='http'"):
         HttpDecoy(profile)
+
+def test_path_traversal_is_not_resolved_to_host_files(decoy: HttpDecoy) -> None:
+    response = decoy.handle(
+        b"GET /../../etc/passwd HTTP/1.1\\r\\nHost: example.test\\r\\n\\r\\n"
+    )
+    assert response.startswith(b"HTTP/1.1 404 Not Found")
+    assert b"root:" not in response
+
+
+def test_profile_rejects_header_injection() -> None:
+    with pytest.raises(ValueError, match="control characters"):
+        DecoyProfile("bad", "Bad", Protocol.HTTP, "nginx", "1.2\\r\\nX-Evil: yes", "host")
