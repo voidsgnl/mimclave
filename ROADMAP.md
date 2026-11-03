@@ -50,10 +50,14 @@
 - [x] Strip query strings and fragments; request bodies, cookies, authorization headers, and form values are outside the event schema.
 - [x] Keep User-Agent capture disabled by default; optional capture is bounded and control-character sanitized.
 - [x] Verify event model and tests in CI across Python 3.12–3.14 (run #57: 51 tests passed and Ruff passed on all three versions).
-- [ ] Add a loopback-only optional transport adapter with bounded connections and explicit shutdown.
+- [x] Add an opt-in HTTP transport adapter restricted to literal loopback IP addresses; non-loopback and hostname binds are rejected.
+- [x] Bound request header reads to the HTTP parser limit and apply per-request timeouts and a maximum active-connection count.
+- [x] Emit structured session events before sending responses; telemetry callback failure does not send the decoy response.
+- [x] Close active clients during explicit, idempotent shutdown; no backend forwarding or keep-alive.
 - [ ] Add HTTPS/TLS adapter only after HTTP behaviour and TLS configuration are reviewed.
 
 ## CI verification record
+- GitHub Actions run #64, commit `4c44ce2`: **success** on Python 3.12, 3.13, and 3.14. 57 tests passed; Ruff passed in all matrix jobs (loopback HTTP transport).
 - GitHub Actions run #57, commit `727320a`: **success** on Python 3.12, 3.13, and 3.14. 51 tests passed; Ruff passed in all matrix jobs (structured telemetry).
 - GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs (M1).
 - GitHub Actions run #45, commit `b69704b`: **success** on Python 3.12, 3.13, and 3.14. 41 tests passed; Ruff passed in all matrix jobs (M2 HTTP engine).
@@ -111,3 +115,4 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 - 2026-11-03: Added the immutable session event model, per-session sequence/correlation, UTC timestamps, source metadata validation, query-string removal, and opt-in sanitized User-Agent capture. Added focused unit tests; CI verification pending.
 - 2026-11-03: Corrected a Ruff import-style finding; GitHub Actions run #57 passed 51 tests and Ruff on Python 3.12–3.14. Structured telemetry model is now CI-verified.
+- 2026-11-03: Added the opt-in loopback-only HTTP server with bounded header reads, request timeouts, active-connection limits, event-sink-before-response behaviour, and explicit shutdown. GitHub Actions run #64 passed 57 tests and Ruff on Python 3.12–3.14.
