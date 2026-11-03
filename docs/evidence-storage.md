@@ -68,3 +68,12 @@ The store exposes `publish_checkpoint(anchor)` and `verify_checkpoint(anchor)` u
 The anchor is an injected `CheckpointAnchor` implementation. Its durable state must be stored outside the evidence file's trust boundary (for example, a separately administered remote service or independently protected database). The repository currently defines the interface and tests it with an in-memory test double; it does not yet ship a production remote anchor implementation. CI run #135 passed 79 tests and Ruff on Python 3.12–3.14. A local sidecar file on the same host is not an independent anchor.
 
 Verification checks the entire local chain and confirms that the record at the externally committed count has the anchored hash. It rejects a log shorter than the checkpoint or a replacement whose prefix differs. A log may contain additional valid records after the last checkpoint; those records are unanchored until the next successful publication. External implementations must enforce monotonic generations and durable compare-and-set; a last-write-wins store is not sufficient.
+
+
+## Verified export and retention boundary
+
+`export_verified(destination, anchor=...)` creates a new file with mode `0600`, refuses to overwrite an existing destination, verifies the complete source chain, optionally verifies its externally anchored prefix, copies the original JSONL bytes, fsyncs the exported file, and fsyncs the destination directory. The source log is held under a shared lock for the operation and is never modified. The export is therefore a verified copy, not a retention deletion or rotation operation.
+
+If export writing or syncing fails, a partial destination may remain; preserve and inspect it rather than treating it as a valid export. The destination can be independently checked with `JsonlEvidenceStore(destination).verify()`. If an external checkpoint was used, retain the checkpoint receipt from the anchor as separate provenance; the JSONL file alone does not contain the external anchor's trust.
+
+No automatic deletion, pruning, rotation, or retention scheduler is implemented. Do not delete the source merely because an export call returned: independently verify the exported file, preserve its checkpoint provenance in the independent anchor, and follow an operator-approved retention policy. Current hash chains begin at the genesis hash, so removing an earlier prefix would break verification; segmented retention needs a separately specified segment manifest and checkpoint handoff.
