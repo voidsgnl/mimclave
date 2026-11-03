@@ -18,7 +18,6 @@ from typing import Any
 
 from mirage.telemetry.checkpoints import (
     CheckpointAnchor,
-    CheckpointConflictError,
     CheckpointError,
     EvidenceCheckpoint,
 )
