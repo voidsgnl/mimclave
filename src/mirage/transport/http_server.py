@@ -136,6 +136,9 @@ class HttpDecoyServer:
                 pass
         except (TimeoutError, ConnectionError, OSError):
             pass
+        except Exception:
+            # A broken telemetry sink must not leak an unrecorded decoy response.
+            pass
         finally:
             self._writers.discard(writer)
             self._active_connections -= 1
