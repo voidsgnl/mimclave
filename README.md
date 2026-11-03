@@ -31,11 +31,11 @@ M1 foundation is in progress. The repository now contains typed configuration mo
 8. Threat intelligence correlation and cautious attribution analysis.
 9. Management API and operator dashboard.
 
-See [Architecture](docs/architecture.md), [Requirements](docs/requirements.md), and [Threat Model](docs/threat-model.md).
+See [Roadmap & Handoff](ROADMAP.md), [Architecture](docs/architecture.md), [Requirements](docs/requirements.md), [Configuration](docs/configuration.md), and [Threat Model](docs/threat-model.md).
 
 ## Development
 
-Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest`. The initial implementation milestone focuses on read-only service discovery and configuration validation. Run `python -m pip install -e '.[dev]'`, then `mirage discover` (or `python -m mirage discover`) to list locally visible TCP listeners and bound UDP sockets as JSON. UDP entries are bound-socket observations, not proof that an application-level service is responsive. Network interception and sandbox execution will be introduced only after their threat model and safety tests are established.
+Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest` and `ruff check .`. Use `mirage validate-config config/example.toml` to validate a configuration and `mirage discover` (or `python -m mirage discover`) to list locally visible TCP listeners and bound UDP sockets as JSON. UDP entries are bound-socket observations, not proof that an application-level service is responsive. Configuration validation and discovery are offline/read-only; network interception and sandbox execution are not implemented.
 
 ## Safety
 
