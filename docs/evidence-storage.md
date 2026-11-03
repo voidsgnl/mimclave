@@ -77,3 +77,8 @@ Verification checks the entire local chain and confirms that the record at the e
 If export writing or syncing fails, a partial destination may remain; preserve and inspect it rather than treating it as a valid export. The destination can be independently checked with `JsonlEvidenceStore(destination).verify()`. If an external checkpoint was used, retain the checkpoint receipt from the anchor as separate provenance; the JSONL file alone does not contain the external anchor's trust.
 
 No automatic deletion, pruning, rotation, or retention scheduler is implemented. Do not delete the source merely because an export call returned: independently verify the exported file, preserve its checkpoint provenance in the independent anchor, and follow an operator-approved retention policy. Current hash chains begin at the genesis hash, so removing an earlier prefix would break verification; segmented retention needs a separately specified segment manifest and checkpoint handoff. CI run #142 passed 82 tests and Ruff on Python 3.12–3.14.
+
+
+## Throughput measurement
+
+Run `python scripts/benchmark_evidence_store.py --events 100` from the repository root to measure synchronous append throughput and full-chain verification on the target filesystem and hardware. The benchmark uses a temporary directory and synthetic metadata-only events; it does not touch production evidence. CI runs a 10-event smoke test to ensure the benchmark remains executable, but CI timing is not a performance baseline. Record measurements on representative Linux storage before deciding whether a bounded asynchronous queue or indexed/checkpointed verification is justified.
