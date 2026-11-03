@@ -31,6 +31,10 @@ class EvidenceIntegrityError(EvidenceStoreError):
     """The existing evidence log is malformed, incomplete, or tampered with."""
 
 
+class EvidenceEventConflictError(EvidenceStoreError):
+    """An event ID was reused with a different event payload."""
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceReceipt:
     record_number: int
@@ -104,8 +108,20 @@ class JsonlEvidenceStore:
             fcntl.flock(fd, fcntl.LOCK_EX)
             self._validate_file(fd)
             current = self._read_all(fd)
-            verification = self._verify_bytes(current)
+            verification, event_index = self._scan_bytes(current)
             payload = _event_payload(event)
+            existing = event_index.get(event.event_id)
+            if existing is not None:
+                record_number, existing_payload, existing_hash = existing
+                if existing_payload != payload:
+                    raise EvidenceEventConflictError(
+                        "event_id already exists with a different payload"
+                    )
+                return EvidenceReceipt(
+                    record_number=record_number,
+                    event_id=event.event_id,
+                    record_hash=existing_hash,
+                )
             unsigned = {
                 "schema_version": SCHEMA_VERSION,
                 "previous_hash": verification.head_hash,
@@ -177,8 +193,18 @@ class JsonlEvidenceStore:
             view = view[written:]
 
     def _verify_bytes(self, data: bytes) -> StoreVerification:
+        verification, _ = self._scan_bytes(data)
+        return verification
+
+    def _scan_bytes(
+        self, data: bytes
+    ) -> tuple[StoreVerification, dict[str, tuple[int, dict[str, Any], str]]]:
+        event_index: dict[str, tuple[int, dict[str, Any], str]] = {}
         if not data:
-            return StoreVerification(record_count=0, head_hash=GENESIS_HASH)
+            return (
+                StoreVerification(record_count=0, head_hash=GENESIS_HASH),
+                event_index,
+            )
         if not data.endswith(b"\n"):
             raise EvidenceIntegrityError("evidence log has an incomplete trailing record")
 
@@ -214,9 +240,18 @@ class JsonlEvidenceStore:
                     f"hash-chain link mismatch at record {line_number}"
                 )
             event = envelope["event"]
-            if not isinstance(event, dict):
+            if (
+                not isinstance(event, dict)
+                or not isinstance(event.get("event_id"), str)
+                or not event["event_id"].strip()
+            ):
                 raise EvidenceIntegrityError(
-                    f"event payload is invalid at record {line_number}"
+                    f"event payload or event_id is invalid at record {line_number}"
+                )
+            event_id = event["event_id"]
+            if event_id in event_index:
+                raise EvidenceIntegrityError(
+                    f"duplicate event_id at record {line_number}"
                 )
             unsigned = {
                 "schema_version": envelope["schema_version"],
@@ -233,7 +268,11 @@ class JsonlEvidenceStore:
                 )
             previous_hash = expected_hash
             count += 1
-        return StoreVerification(record_count=count, head_hash=previous_hash)
+            event_index[event_id] = (count, event, expected_hash)
+        return (
+            StoreVerification(record_count=count, head_hash=previous_hash),
+            event_index,
+        )
 
     def _fsync_parent(self) -> None:
         parent = self.path.parent
