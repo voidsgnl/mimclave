@@ -58,7 +58,10 @@ class HttpRequest:
                 raise RequestError("whitespace is not permitted in HTTP header names")
             key = name.lower()
             token_chars = "!#$%&'*+-.^_`|~"
-            if not key or not all(char.isascii() and (char.isalnum() or char in token_chars) for char in key):
+            valid_name = all(
+                char.isascii() and (char.isalnum() or char in token_chars) for char in key
+            )
+            if not key or not valid_name:
                 raise RequestError("invalid HTTP header name")
             if key in headers:
                 raise RequestError(f"duplicate HTTP header: {key}")
@@ -114,6 +117,7 @@ class HttpDecoy:
         path = request.target.split("?", 1)[0]
         if path == "/":
             status, reason = 200, "OK"
+            content_type = "text/html; charset=utf-8"
             title = self.profile.hostname
             body = (
                 "<!doctype html><html><head><title>"
@@ -127,6 +131,7 @@ class HttpDecoy:
             body = b"User-agent: *\nDisallow: /private/\n"
         elif path == "/login":
             status, reason = 200, "OK"
+            content_type = "text/html; charset=utf-8"
             body = (
                 b"<!doctype html><html><head><title>Sign in</title></head>"
                 b"<body><h1>Sign in</h1><form method=\"post\">"
@@ -135,6 +140,7 @@ class HttpDecoy:
             )
         else:
             status, reason = 404, "Not Found"
+            content_type = "text/html; charset=utf-8"
             body = b"<!doctype html><html><body><h1>Not Found</h1></body></html>"
 
         response = HttpResponse(
@@ -142,7 +148,7 @@ class HttpDecoy:
             reason=reason,
             headers={
                 "Server": f"{self.profile.service_name}/{self.profile.service_version}",
-                "Content-Type": "text/html; charset=utf-8",
+                "Content-Type": content_type,
                 "X-Content-Type-Options": "nosniff",
             },
             body=body,
