@@ -137,9 +137,9 @@ def test_oversized_header_is_rejected_without_event() -> None:
         try:
             reader, writer = await asyncio.open_connection(*server.address)
             writer.write(
-                b"GET / HTTP/1.1\\r\\nHost: "
+                b"GET / HTTP/1.1\r\nHost: "
                 + b"a" * 17000
-                + b"\\r\\n\\r\\n"
+                + b"\r\n\r\n"
             )
             await writer.drain()
             response = await asyncio.wait_for(reader.read(), timeout=1.0)
@@ -162,7 +162,7 @@ def test_telemetry_sink_failure_suppresses_decoy_response() -> None:
         await server.start()
         try:
             reader, writer = await asyncio.open_connection(*server.address)
-            writer.write(b"GET / HTTP/1.1\\r\\nHost: local.test\\r\\n\\r\\n")
+            writer.write(b"GET / HTTP/1.1\r\nHost: local.test\r\n\r\n")
             await writer.drain()
             assert await asyncio.wait_for(reader.read(), timeout=1.0) == b""
             writer.close()
