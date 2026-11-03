@@ -92,3 +92,9 @@ def test_http_decoy_rejects_non_ascii_server_header() -> None:
     profile = DecoyProfile("web", "Web", Protocol.HTTP, "ngïnx", "1.2", "host")
     with pytest.raises(ValueError, match="ASCII"):
         HttpDecoy(profile)
+
+def test_robots_route_uses_plain_text_content_type(decoy: HttpDecoy) -> None:
+    response = decoy.handle(
+        b"GET /robots.txt HTTP/1.1\r\nHost: example.test\r\n\r\n"
+    )
+    assert b"Content-Type: text/plain; charset=utf-8" in response
