@@ -19,7 +19,7 @@ Provide coherent, fabricated protocol responses to clients interacting with MIRA
 
 1. Pure HTTP response engine: parse one bounded request and return deterministic fabricated pages. No network listener. Initial implementation is underway.
 2. Request/session event model: implemented as immutable `SessionEvent` records with a per-session correlation ID, strictly increasing sequence, UTC timestamp, profile ID, method/path/status, and validated source IP/port. Query strings and fragments are removed. User-Agent capture is disabled by default and can be explicitly enabled with bounded control-character sanitization. Request bodies, cookies, authorization headers, and form values are not part of the event schema.
-3. Loopback-only transport adapter: optional local test server with explicit bind address, connection/time limits, and no backend forwarding.
+3. Loopback-only transport adapter: implemented as `HttpDecoyServer` in `src/mirage/transport/http_server.py`. It requires a literal loopback IP (default `127.0.0.1`), rejects hostnames and non-loopback binds, bounds header reads, applies request timeouts and an active-connection cap, emits an event before sending a response, and closes active clients on shutdown. It closes each connection after one request and never forwards to a backend.
 4. TLS adapter: certificate/key handling and TLS policy; test certificates only for development, no implicit public bind.
 5. Security tests: malformed request framing, oversized headers/body, duplicate headers, path traversal, host-header injection, connection exhaustion, and process shutdown.
 
@@ -46,3 +46,10 @@ Provide coherent, fabricated protocol responses to clients interacting with MIRA
 The event model lives in `src/mirage/telemetry/events.py`. A transport adapter is responsible for supplying peer address metadata; the model does not attempt to infer endpoint identity or inspect the remote client device. Sequence numbers define event order within one session; wall-clock timestamps are UTC observations and are not used as the sole ordering guarantee.
 
 The default collection policy deliberately omits User-Agent and does not model request bodies or credential-bearing headers. The request target is reduced to its path before an event is created, so query parameters are not retained. This is a structured in-memory event model only: durable storage, tamper-evident chaining, retention, and export belong to M3.
+
+
+## Loopback transport constraints
+
+The transport is opt-in and intended for local integration testing, not deployment in front of production services. Port `0` may be used to request an OS-assigned ephemeral port. Only literal loopback IP addresses are accepted; DNS names and wildcard/public addresses are rejected. Each connection handles one request and is closed. A bounded timeout applies while reading and writing, and excess active connections receive a fixed 503 response. Malformed or oversized requests receive a fixed 400 response where possible.
+
+An event sink is required. MIRAGE generates the event and invokes the sink before writing the decoy response; if the sink raises an exception, the response is not sent. This is a fail-closed behaviour for the local adapter, not a substitute for the independent network enforcement required by M5.
