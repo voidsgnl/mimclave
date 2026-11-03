@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, and external checkpoint interface implemented and CI-verified (79 tests on Python 3.12–3.14). No production remote anchor adapter yet.**
+**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, external checkpoint interface, and verified export implemented and CI-verified (82 tests on Python 3.12–3.14). No production remote anchor adapter or retention deletion yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -63,9 +63,9 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #142, commit `c35b905`: **success** on Python 3.12, 3.13, and 3.14. 82 tests passed; Ruff passed in all matrix jobs (verified evidence export and checkpoint validation).
 - GitHub Actions run #135, commit `eb0414a`: **success** on Python 3.12, 3.13, and 3.14. 79 tests passed; Ruff passed in all matrix jobs (external checkpoint interface, anchored-prefix verification, rollback/replacement detection).
 - GitHub Actions run #123, commit `85b6fe0`: **success** on Python 3.12, 3.13, and 3.14. 75 tests passed; Ruff passed in all matrix jobs (idempotent evidence append and conflict handling).
-- GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #64, commit `4c44ce2`: **success** on Python 3.12, 3.13, and 3.14. 57 tests passed; Ruff passed in all matrix jobs (loopback HTTP transport).
 - GitHub Actions run #57, commit `727320a`: **success** on Python 3.12, 3.13, and 3.14. 51 tests passed; Ruff passed in all matrix jobs (structured telemetry).
@@ -126,6 +126,8 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Test that anchored checkpoints detect log truncation and replacement, and that compare-and-set conflicts are surfaced.
 - [x] Add verified full-chain export with optional checkpoint verification, private destination permissions, no-overwrite semantics, and fsync.
 - [x] CI run #135 passed 79 tests and Ruff on Python 3.12, 3.13, and 3.14.
+- [x] Add verified full-chain export with optional checkpoint verification, private destination permissions, no-overwrite semantics, and fsync.
+- [x] CI run #142 passed 82 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
 - [ ] Implement a production external anchor adapter with independently protected durable state; an in-memory test double is not a production anchor.
 
@@ -163,3 +165,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: External checkpoint interface and anchored-prefix verification passed CI run #135: 79 tests and Ruff on Python 3.12–3.14. Truncation and replacement of a previously anchored prefix are detected. No production remote anchor adapter is included; the tests use an in-memory contract implementation.
 
 - 2026-11-03: Added verified evidence export. It verifies the full chain (and optional external checkpoint), copies without modifying the source, refuses overwrite, applies mode 0600, and fsyncs the file and directory. Automatic deletion/rotation remains out of scope. CI verification pending.
+
+- 2026-11-03: Verified evidence export passed CI run #142: 82 tests and Ruff on Python 3.12–3.14. Export verifies the full chain and optional checkpoint, refuses overwrite, writes mode 0600, fsyncs file and directory, and leaves source unchanged. Automatic retention deletion remains intentionally unimplemented.
