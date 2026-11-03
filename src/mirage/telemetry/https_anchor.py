@@ -41,6 +41,10 @@ class HttpsCheckpointAnchor:
         timeout: float = 5.0,
     ) -> None:
         parsed = urlsplit(endpoint)
+        try:
+            parsed.port
+        except ValueError as exc:
+            raise ValueError("checkpoint endpoint has an invalid port") from exc
         if (
             parsed.scheme != "https"
             or not parsed.hostname
@@ -79,7 +83,7 @@ class HttpsCheckpointAnchor:
                     raise CheckpointError(
                         f"checkpoint service returned unexpected HTTP {response.status}"
                     )
-                checkpoint = self._decode_checkpoint(response.read())
+                checkpoint = self._decode_checkpoint(self._read_bounded(response))
                 etag = response.headers.get("ETag")
                 if not self._is_strong_etag(etag):
                     raise CheckpointError(
@@ -136,7 +140,7 @@ class HttpsCheckpointAnchor:
                     raise CheckpointError(
                         f"checkpoint service returned unexpected HTTP {response.status}"
                     )
-                stored = self._decode_checkpoint(response.read())
+                stored = self._decode_checkpoint(self._read_bounded(response))
                 etag = response.headers.get("ETag")
                 if stored != checkpoint or not self._is_strong_etag(etag):
                     raise CheckpointError(
@@ -163,6 +167,13 @@ class HttpsCheckpointAnchor:
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
+
+    @staticmethod
+    def _read_bounded(response: object) -> bytes:
+        data = response.read(4097)  # type: ignore[attr-defined]
+        if len(data) > 4096:
+            raise CheckpointError("checkpoint service response exceeds 4096 bytes")
+        return data
 
     @staticmethod
     def _decode_checkpoint(data: bytes) -> EvidenceCheckpoint:
