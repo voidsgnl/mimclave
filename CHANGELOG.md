@@ -20,6 +20,8 @@ All notable project changes are documented here.
 ### Added
 - Started M2 with a transport-free HTTP decoy engine, bounded request parser, static fabricated routes, and safety tests.
 - Added protocol simulation design and security-boundary documentation.
+- Hardened HTTP parsing with required HTTP/1.1 Host, strict header tokens, bounded Content-Length, and route-specific content types.
+- Added path traversal, request framing, header injection, and response behaviour tests; 41 tests pass in CI across Python 3.12–3.14.
 
 ### Security
 - Decoy identity strings reject control characters; HTTP simulation does not reflect untrusted Host headers, access host files, execute commands, or forward to protected services.
