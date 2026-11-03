@@ -73,3 +73,21 @@ def test_path_traversal_is_not_resolved_to_host_files(decoy: HttpDecoy) -> None:
 def test_profile_rejects_header_injection() -> None:
     with pytest.raises(ValueError, match="control characters"):
         DecoyProfile("bad", "Bad", Protocol.HTTP, "nginx", "1.2\r\nX-Evil: yes", "host")
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"GET / HTTP/1.1\\r\\n\\r\\n",
+        b"GET / HTTP/1.1\\r\\nHost : example.test\\r\\n\\r\\n",
+        b"GET / HTTP/1.1\\r\\nHost: x\\r\\nContent-Length: 999999999\\r\\n\\r\\n",
+    ],
+)
+def test_reject_missing_host_bad_header_and_oversized_body(decoy: HttpDecoy, raw: bytes) -> None:
+    with pytest.raises(RequestError):
+        decoy.handle(raw)
+
+
+def test_http_decoy_rejects_non_ascii_server_header() -> None:
+    profile = DecoyProfile("web", "Web", Protocol.HTTP, "ngïnx", "1.2", "host")
+    with pytest.raises(ValueError, match="ASCII"):
+        HttpDecoy(profile)
