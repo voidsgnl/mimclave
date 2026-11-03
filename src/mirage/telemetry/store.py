@@ -16,6 +16,12 @@ from datetime import UTC
 from pathlib import Path
 from typing import Any
 
+from mirage.telemetry.checkpoints import (
+    CheckpointAnchor,
+    CheckpointConflictError,
+    CheckpointError,
+    EvidenceCheckpoint,
+)
 from mirage.telemetry.events import SessionEvent
 
 GENESIS_HASH = "0" * 64
@@ -165,6 +171,116 @@ class JsonlEvidenceStore:
             raise EvidenceStoreError(f"evidence verification failed: {exc}") from exc
         finally:
             os.close(fd)
+
+    def publish_checkpoint(self, anchor: CheckpointAnchor) -> EvidenceCheckpoint:
+        """Publish the current verified head to an independent monotonic anchor.
+
+        The anchor must be outside this evidence file's trust boundary and
+        implement durable compare-and-set semantics.
+        """
+        flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(self.path, flags)
+        except OSError as exc:
+            raise EvidenceStoreError(f"cannot open evidence store: {exc}") from exc
+        try:
+            self._validate_file(fd)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            verification, event_index = self._scan_bytes(self._read_all(fd))
+            if verification.record_count == 0:
+                raise CheckpointError("cannot checkpoint an empty evidence store")
+            try:
+                current = anchor.read()
+            except Exception as exc:
+                raise CheckpointError("could not read external checkpoint") from exc
+
+            expected_generation = None
+            next_generation = 1
+            if current is not None:
+                self._assert_checkpoint_prefix(current, verification, event_index)
+                if (
+                    current.record_count == verification.record_count
+                    and current.head_hash == verification.head_hash
+                ):
+                    return current
+                expected_generation = current.generation
+                next_generation = current.generation + 1
+
+            checkpoint = EvidenceCheckpoint(
+                generation=next_generation,
+                record_count=verification.record_count,
+                head_hash=verification.head_hash,
+            )
+            try:
+                anchor.compare_and_set(
+                    expected_generation=expected_generation,
+                    checkpoint=checkpoint,
+                )
+            except CheckpointError:
+                raise
+            except Exception as exc:
+                raise CheckpointError("could not publish external checkpoint") from exc
+            return checkpoint
+        except (EvidenceStoreError, CheckpointError):
+            raise
+        except OSError as exc:
+            raise EvidenceStoreError(f"checkpoint operation failed: {exc}") from exc
+        finally:
+            os.close(fd)
+
+    def verify_checkpoint(self, anchor: CheckpointAnchor) -> EvidenceCheckpoint:
+        """Verify that the local log contains the prefix committed externally."""
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(self.path, flags)
+        except OSError as exc:
+            raise EvidenceStoreError(f"cannot open evidence store: {exc}") from exc
+        try:
+            self._validate_file(fd)
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            verification, event_index = self._scan_bytes(self._read_all(fd))
+            try:
+                checkpoint = anchor.read()
+            except Exception as exc:
+                raise CheckpointError("could not read external checkpoint") from exc
+            if checkpoint is None:
+                raise CheckpointError("external checkpoint has not been initialized")
+            self._assert_checkpoint_prefix(checkpoint, verification, event_index)
+            return checkpoint
+        except (EvidenceStoreError, CheckpointError):
+            raise
+        except OSError as exc:
+            raise EvidenceStoreError(f"checkpoint verification failed: {exc}") from exc
+        finally:
+            os.close(fd)
+
+    @staticmethod
+    def _assert_checkpoint_prefix(
+        checkpoint: EvidenceCheckpoint,
+        verification: StoreVerification,
+        event_index: dict[str, tuple[int, dict[str, Any], str]],
+    ) -> None:
+        if checkpoint.record_count > verification.record_count:
+            raise CheckpointError(
+                "evidence log is shorter than its externally anchored checkpoint"
+            )
+        if checkpoint.record_count == 0:
+            expected_hash = GENESIS_HASH
+        else:
+            expected_hash = next(
+                (
+                    record_hash
+                    for record_number, _, record_hash in event_index.values()
+                    if record_number == checkpoint.record_count
+                ),
+                None,
+            )
+        if expected_hash is None or not hmac.compare_digest(
+            expected_hash, checkpoint.head_hash
+        ):
+            raise CheckpointError(
+                "evidence log does not match its externally anchored checkpoint"
+            )
 
     def _validate_file(self, fd: int) -> None:
         info = os.fstat(fd)
