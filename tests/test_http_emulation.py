@@ -56,9 +56,9 @@ def test_request_size_is_bounded(decoy: HttpDecoy) -> None:
         decoy.handle(b"GET / HTTP/1.1\r\nX: " + b"a" * 17000 + b"\r\n\r\n")
 
 
-def test_http_decoy_rejects_https_profile() -> None:
-    profile = DecoyProfile("tls", "TLS", Protocol.HTTPS, "nginx", "1.24", "host")
-    with pytest.raises(ValueError, match="protocol='http'"):
+def test_http_decoy_rejects_non_http_protocol_profile() -> None:
+    profile = DecoyProfile("ftp", "FTP", Protocol.FTP, "vsftpd", "3.0", "host")
+    with pytest.raises(ValueError, match="http or https"):
         HttpDecoy(profile)
 
 
