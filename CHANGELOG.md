@@ -5,6 +5,7 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- CI verification for structured telemetry: 51 tests and Ruff passed on Python 3.12, 3.13, and 3.14.
 - Added immutable structured HTTP session events with per-session correlation IDs, sequence ordering, UTC timestamps, profile/request/response metadata, and validated source addresses.
 - Added conservative telemetry defaults: query strings are removed, User-Agent capture is opt-in, and request bodies and credential-bearing headers are not represented.
 - Created the initial project foundation and documented MIRAGE's purpose.
