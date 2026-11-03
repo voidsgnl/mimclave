@@ -121,11 +121,12 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] CI run #116 passed 73 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Idempotent append: identical event ID/payload retries return the original receipt; conflicting payload reuse raises `EvidenceEventConflictError`; duplicate IDs in existing logs are rejected.
 - [x] CI run #123 passed 75 tests and Ruff on Python 3.12, 3.13, and 3.14.
-- [ ] Design external head-hash anchoring and safe export/retention before adding automatic deletion or claiming whole-file tamper detection.
+- [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
+- [ ] Implement a production external anchor adapter with independently protected durable state; an in-memory test double is not a production anchor.
 
 ## Resume here — exact next steps
 1. [x] Define safe idempotency semantics: stable event ID retries return the original receipt, conflicting payload reuse is rejected, and duplicate IDs in a log invalidate the log.
-2. Design and implement an external checkpoint interface with monotonic generations and prefix verification; do not pretend a local sidecar is an independent anchor.
+2. [x] Implement an external checkpoint interface with monotonic generations, compare-and-set publication, and anchored-prefix verification. Production remote anchor adapter remains open.
 3. Define evidence export and retention semantics that preserve chain continuity and checkpoint provenance.
 4. Measure append/verification throughput and design a bounded queue/backpressure strategy only if synchronous fsync is insufficient.
 5. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
@@ -151,3 +152,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Implemented idempotent append by stable event ID. Identical retries return the original receipt without a duplicate record; conflicting payload reuse is rejected; duplicate IDs in an existing log fail verification. Added regression tests; CI verification pending.
 
 - 2026-11-03: Idempotent event append is CI-verified in run #123: 75 tests and Ruff passed on Python 3.12–3.14. A retry with the same event ID and identical payload returns the original receipt; a conflicting payload is rejected; duplicate IDs invalidate the log.
+
+- 2026-11-03: Added the external checkpoint contract and store operations. Checkpoints commit generation, record count, and head hash; verification detects truncation and replacement of an anchored prefix. CI verification pending. Only the interface and an in-memory test double exist; no production remote anchor is included.
