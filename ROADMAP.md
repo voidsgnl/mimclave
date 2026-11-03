@@ -22,7 +22,7 @@
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
-**M2 — safe protocol simulation: pure HTTP engine, structured session-event model, and loopback-only HTTP transport implemented. HTTP transport CI-verified on Python 3.12–3.14; TLS remains.**
+**M2 — safe protocol simulation: pure HTTP engine, structured session-event model, and loopback-only HTTP transport implemented. Transport hardening CI-verified on Python 3.12–3.14; TLS remains.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -54,7 +54,7 @@
 - [x] Bound request header reads to the HTTP parser limit and apply per-request timeouts and a maximum active-connection count.
 - [x] Emit structured session events before sending responses; telemetry callback failure does not send the decoy response.
 - [x] Close active clients during explicit, idempotent shutdown; no backend forwarding or keep-alive.
-- [x] Add oversized-header rejection and telemetry-sink-failure tests; a telemetry failure closes the connection without returning an unrecorded decoy response.
+- [x] Add oversized-header rejection and telemetry-sink-failure tests; a telemetry failure closes the connection without returning an unrecorded decoy response (CI run #76: 59 tests passed and Ruff passed on Python 3.12–3.14).
 - [ ] Add HTTPS/TLS adapter with explicit server-side TLS context and loopback-only binding.
 
 ## CI verification record
@@ -117,4 +117,4 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Added the immutable session event model, per-session sequence/correlation, UTC timestamps, source metadata validation, query-string removal, and opt-in sanitized User-Agent capture. Added focused unit tests; CI verification pending.
 - 2026-11-03: Corrected a Ruff import-style finding; GitHub Actions run #57 passed 51 tests and Ruff on Python 3.12–3.14. Structured telemetry model is now CI-verified.
 - 2026-11-03: Added the opt-in loopback-only HTTP server with bounded header reads, request timeouts, active-connection limits, event-sink-before-response behaviour, and explicit shutdown. GitHub Actions run #64 passed 57 tests and Ruff on Python 3.12–3.14.
-\n- 2026-11-03: Hardened the loopback HTTP transport: oversized headers are rejected, and telemetry sink exceptions close the connection without sending a decoy response. Added regression tests; CI verification pending.\n
+\n- 2026-11-03: Hardened the loopback HTTP transport: oversized headers are rejected, and telemetry sink exceptions close the connection without sending a decoy response. Added regression tests; CI verification pending.\n\n- 2026-11-03: Fixed escaped line endings in the two new transport tests; CI run #76 passed 59 tests and Ruff on Python 3.12–3.14. Oversized-header and telemetry-sink-failure behaviour is now verified.\n
