@@ -59,3 +59,12 @@ The caller must retain and reuse the same immutable `SessionEvent` (especially i
 - A valid hash chain containing duplicate event IDs is rejected as an integrity error.
 
 This is idempotent append, not exactly-once delivery across arbitrary process/storage failures. If a crash leaves a partial trailing line, verification rejects the log and append stops; do not truncate or auto-repair evidence. Preserve the file for operator investigation. A retry cannot safely infer whether a partial write represented a committed event.
+
+
+## External checkpoints
+
+The store exposes `publish_checkpoint(anchor)` and `verify_checkpoint(anchor)` using the contract in `mirage.telemetry.checkpoints`. A checkpoint commits to a monotonically increasing generation, record count, and chain head hash. Publication is serialized against appends with the evidence file lock and uses the anchor's atomic compare-and-set operation.
+
+The anchor is an injected `CheckpointAnchor` implementation. Its durable state must be stored outside the evidence file's trust boundary (for example, a separately administered remote service or independently protected database). The repository currently defines the interface and tests it with an in-memory test double; it does not yet ship a production remote anchor implementation. A local sidecar file on the same host is not an independent anchor.
+
+Verification checks the entire local chain and confirms that the record at the externally committed count has the anchored hash. It rejects a log shorter than the checkpoint or a replacement whose prefix differs. A log may contain additional valid records after the last checkpoint; those records are unanchored until the next successful publication. External implementations must enforce monotonic generations and durable compare-and-set; a last-write-wins store is not sufficient.
