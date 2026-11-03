@@ -285,8 +285,10 @@ def test_verified_export_requires_matching_external_checkpoint(tmp_path) -> None
     anchor = MemoryCheckpointAnchor()
     store.publish_checkpoint(anchor)
 
-    source.write_bytes(JsonlEvidenceStore(tmp_path / "different.jsonl").path.read_bytes()
-                        if (tmp_path / "different.jsonl").exists() else b"")
+    replacement_path = tmp_path / "different.jsonl"
+    replacement = JsonlEvidenceStore(replacement_path)
+    replacement.append(make_event(99))
+    source.write_bytes(replacement_path.read_bytes())
 
     with pytest.raises(CheckpointError):
         store.export_verified(destination, anchor=anchor)
