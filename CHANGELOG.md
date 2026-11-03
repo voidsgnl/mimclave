@@ -59,4 +59,4 @@ All notable project changes are documented here.
 
 
 ### M3 — HTTPS checkpoint client
-- Added `HttpsCheckpointAnchor`, an HTTPS client adapter using verified TLS, bearer authentication, bounded responses, redirect refusal, strong ETags, and conditional create/update semantics. The external service must implement the documented atomic durable compare-and-set API; no hosted anchor server is included.
+- Added `HttpsCheckpointAnchor`, an HTTPS client adapter using verified TLS, bearer authentication, bounded responses, redirect refusal, strong ETags, and conditional create/update semantics. The external service must implement the documented atomic durable compare-and-set API; no hosted anchor server is included. CI run #169 passed 93 tests and Ruff on Python 3.12–3.14.
