@@ -63,6 +63,15 @@ def test_https_transport_requires_explicit_server_tls_context(
             host="0.0.0.0",
         )
 
+    weak_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    weak_context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+    with pytest.raises(ValueError, match="TLS 1.2"):
+        HttpsDecoyServer(
+            make_https_decoy(),
+            event_sink=lambda event: None,
+            ssl_context=weak_context,
+        )
+
 
 def test_https_handshake_and_request_emit_event(
     tls_material: tuple[ssl.SSLContext, ssl.SSLContext],
@@ -117,6 +126,33 @@ def test_https_client_rejects_untrusted_certificate(
                     ssl=ssl.create_default_context(),
                     server_hostname="localhost",
                 )
+        finally:
+            await server.close()
+
+    asyncio.run(scenario())
+
+
+
+def test_https_handshake_timeout_closes_incomplete_client(
+    tls_material: tuple[ssl.SSLContext, ssl.SSLContext],
+) -> None:
+    async def scenario() -> None:
+        server_context, _ = tls_material
+        events: list[SessionEvent] = []
+        server = HttpsDecoyServer(
+            make_https_decoy(),
+            event_sink=events.append,
+            ssl_context=server_context,
+            request_timeout=0.1,
+        )
+        await server.start()
+        try:
+            # Connect at TCP level but never send a TLS ClientHello.
+            reader, writer = await asyncio.open_connection(*server.address)
+            assert await asyncio.wait_for(reader.read(), timeout=1.0) == b""
+            assert events == []
+            writer.close()
+            await writer.wait_closed()
         finally:
             await server.close()
 
