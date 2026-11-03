@@ -198,3 +198,17 @@ def test_https_anchor_rejects_oversized_service_response(monkeypatch) -> None:
 
     with pytest.raises(CheckpointError, match="exceeds 4096 bytes"):
         anchor.read()
+
+
+def test_https_anchor_rejects_duplicate_checkpoint_json_keys(monkeypatch) -> None:
+    body = b'{"generation":1,"generation":2,"record_count":1,"head_hash":"' + b"a" * 64 + b'"}'
+    opener = FakeOpener([FakeResponse(200, body, {"ETag": '"v1"'})])
+    monkeypatch.setattr(
+        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        lambda *handlers: opener,
+    )
+    anchor = HttpsCheckpointAnchor(
+        "https://anchor.example/checkpoint", "secret-token"
+    )
+    with pytest.raises(CheckpointError, match="invalid checkpoint"):
+        anchor.read()
