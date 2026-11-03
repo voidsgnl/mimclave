@@ -46,4 +46,4 @@ The hash chain establishes one total append order for the file. Per-session sequ
 
 
 ## Implementation status
-The first implementation is in `src/mirage/telemetry/store.py` as `JsonlEvidenceStore`. It serializes only the existing `SessionEvent` fields, verifies the entire existing chain before each append, serializes appenders with `flock`, writes with append semantics, and calls `fsync` before returning an `EvidenceReceipt`. The HTTP transport can use `store.append` directly as its required event sink. The initial tests are in `tests/test_evidence_store.py` and `tests/test_http_transport.py`. CI verification is pending.
+The first implementation is in `src/mirage/telemetry/store.py` as `JsonlEvidenceStore`. It serializes only the existing `SessionEvent` fields, verifies the entire existing chain before each append, serializes appenders with `flock`, writes with append semantics, and calls `fsync` before returning an `EvidenceReceipt`. The HTTP transport can use `store.append` directly as its required event sink. The initial tests are in `tests/test_evidence_store.py` and `tests/test_http_transport.py`. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14.
