@@ -1,0 +1,20 @@
+# Example only. This file configures identities; it does not start listeners.
+version = 1
+
+[[profiles]]
+id = "public-web"
+name = "Public HTTPS decoy"
+protocol = "https"
+service_name = "nginx"
+service_version = "1.24.0"
+hostname = "portal.example.test"
+
+[[mappings]]
+profile_id = "public-web"
+listener = { host = "0.0.0.0", port = 443, transport = "tcp" }
+
+# The real service inventory is separate from the decoy identity above.
+[[protected_services]]
+id = "internal-web-app"
+description = "Example internal application. Not exposed as the decoy profile."
+endpoint = { host = "127.0.0.1", port = 8080, transport = "tcp" }
