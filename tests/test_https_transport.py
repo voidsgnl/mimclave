@@ -82,7 +82,7 @@ def test_https_handshake_and_request_emit_event(
                 ssl=client_context,
                 server_hostname="localhost",
             )
-            writer.write(b"GET / HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n")
+            writer.write(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
             await writer.drain()
             response = await reader.read()
             writer.close()
