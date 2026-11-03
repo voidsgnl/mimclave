@@ -1,4 +1,5 @@
 import os
+from dataclasses import replace
 import stat
 from concurrent.futures import ThreadPoolExecutor
 
@@ -6,6 +7,7 @@ import pytest
 
 from mirage.telemetry.events import SessionEventFactory
 from mirage.telemetry.store import (
+    EvidenceEventConflictError,
     EvidenceIntegrityError,
     EvidenceStoreError,
     JsonlEvidenceStore,
@@ -119,3 +121,27 @@ def test_duplicate_json_keys_are_rejected(tmp_path) -> None:
 
     with pytest.raises(EvidenceIntegrityError, match="duplicate JSON key"):
         store.verify()
+
+
+
+def test_reappending_identical_event_is_idempotent(tmp_path) -> None:
+    store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+    event = make_event(1)
+
+    first = store.append(event)
+    retry = store.append(event)
+
+    assert retry == first
+    assert store.verify().record_count == 1
+
+
+def test_reusing_event_id_with_different_payload_is_rejected(tmp_path) -> None:
+    store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+    event = make_event(1)
+    store.append(event)
+
+    conflicting = replace(event, status_code=201)
+    with pytest.raises(EvidenceEventConflictError, match="different payload"):
+        store.append(conflicting)
+
+    assert store.verify().record_count == 1
