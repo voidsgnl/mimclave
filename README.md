@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive platform designed to place controlled deceptio
 
 ## Project status
 
-M1 foundation is in progress. The repository now contains typed configuration models, protocol/port compatibility validation, and read-only Linux listener discovery. No production traffic interception or sandbox execution is implemented. Do not deploy MIRAGE in front of production services.
+M1 configuration and read-only discovery is complete and CI-tested on Python 3.12–3.14. M2 has started with a transport-free HTTP decoy response engine; it does not open sockets or forward traffic. No production traffic interception or sandbox execution is implemented. Do not deploy MIRAGE in front of production services.
 
 ## Core principles
 
