@@ -39,9 +39,8 @@
 - [x] Added durable project handoff and changelog updates.
 
 ### CI / verification
-- Earlier runs exposed two real setup issues: malformed TOML in `pyproject.toml`, then Ruff import-order lint failures. The packaging metadata has been corrected and import-order lint was removed from the initial Ruff rule set; syntax, correctness, upgrade, and bugbear checks remain enabled.
-- Latest observed workflow run: **Python checks run #20** (commit `08e4316`) was still in progress at the last check. Do not mark M1 complete until the latest run is green.
-- Tests have passed on earlier CI commit `7aa9d72` after packaging was corrected, but that run predates the latest loader edge-case tests. Current full test matrix is pending.
+- Earlier runs exposed malformed TOML in `pyproject.toml` and Ruff import-order lint findings. Packaging metadata is now corrected; import-order lint was removed from the initial Ruff rule set while E/F/UP/B checks remain enabled.
+- The latest completed verification at commit `08e4316` ran **25 tests successfully on Python 3.12**, but Ruff failed on one 113-character line in `config/validation.py`. That line has now been wrapped. A fresh CI run for the latest commits is pending; do not mark M1 complete until all three Python versions pass tests and lint.
 - No local test run has been performed from a local checkout in this session.
 
 ## Milestones
@@ -88,7 +87,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - `.github/workflows/python.yml` — CI matrix.
 
 ## Resume here — exact next steps
-1. Check the latest GitHub Actions run on `main`. If it fails, inspect job logs and fix the actual cause; do not assume tests passed.
+1. Check the GitHub Actions run triggered by the latest `validation.py` / changelog commits. The previously observed 25-test pass was on Python 3.12 only; Ruff then found one long line, now fixed.
 2. Confirm all tests and Ruff checks pass on Python 3.12, 3.13, and 3.14.
 3. If green, close M1 and move to the read-only discovery-to-config comparison/report. Do not enable traffic interception.
 4. Then design M2 HTTP/TLS emulation, including session consistency and safe fabricated responses, before implementing listeners.
@@ -97,4 +96,4 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 ## Handoff log
 - 2026-11-03: Created roadmap/handoff with project decisions, milestones, and resume steps.
 - 2026-11-03: Added TOML loader, profile registry, sample config, validation CLI, schema documentation, and edge-case tests.
-- 2026-11-03: Corrected `pyproject.toml` console script and adjusted Ruff lint selection after CI identified configuration/style failures. Latest CI verification is pending.
+- 2026-11-03: Corrected `pyproject.toml` console script, adjusted Ruff lint selection, and fixed the remaining E501 finding. Latest CI verification is pending.
