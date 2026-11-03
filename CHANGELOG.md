@@ -55,4 +55,4 @@ All notable project changes are documented here.
 
 
 ### M3 — Performance measurement
-- Added a temporary-file benchmark for synchronous append and full-chain verification throughput. CI runs a small smoke test; representative performance measurements must be collected on target Linux storage before optimizing or introducing asynchronous queues.
+- Added a temporary-file benchmark for synchronous append and full-chain verification throughput. CI run #151 passed the 10-event smoke test on Python 3.12–3.14. The CI sample is not a performance baseline; representative measurements must be collected on target Linux storage before optimizing or introducing asynchronous queues.
