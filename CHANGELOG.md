@@ -14,6 +14,9 @@ All notable project changes are documented here.
 - Added a versioned TOML loader, profile registry, example config, and config validation CLI.
 - Added configuration schema documentation and a durable roadmap/handoff document.
 
+### Fixed
+- Corrected packaging metadata and resolved CI lint findings.
+
 ### Security
 - Discovery performs no active network probes, shell execution, firewall changes, or traffic interception.
 - Real-service inventory remains separate from decoy identity configuration.
