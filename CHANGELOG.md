@@ -48,3 +48,7 @@ All notable project changes are documented here.
 
 ### M3 — External checkpoint contract
 - Added an external checkpoint interface with monotonic generations, record counts, SHA-256 head commitments, and atomic compare-and-set publication. The store can publish and verify checkpoints and detects truncated or replaced log prefixes. Only the interface is implemented; a production remote anchor adapter remains future work. CI run #135 passed 79 tests and Ruff on Python 3.12–3.14.
+
+
+### M3 — Verified export
+- Added a verified JSONL export operation that holds a shared source lock, verifies the complete chain and optional external checkpoint, refuses destination overwrite, writes with `0600` permissions, and fsyncs the file and destination directory. No automatic retention or deletion is performed.
