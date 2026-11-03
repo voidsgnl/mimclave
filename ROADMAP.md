@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: initial append-only, hash-chained JSONL evidence store implemented; CI verification pending.**
+**M3 — telemetry and evidence: initial append-only, hash-chained JSONL evidence store implemented and CI-verified (73 tests and Ruff on Python 3.12–3.14).**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -63,6 +63,7 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #64, commit `4c44ce2`: **success** on Python 3.12, 3.13, and 3.14. 57 tests passed; Ruff passed in all matrix jobs (loopback HTTP transport).
 - GitHub Actions run #57, commit `727320a`: **success** on Python 3.12, 3.13, and 3.14. 51 tests passed; Ruff passed in all matrix jobs (structured telemetry).
@@ -110,12 +111,21 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - tests/ — automated tests.
 - .github/workflows/python.yml — CI matrix.
 
+## M3 initial implementation — CI VERIFIED
+- [x] Specify JSONL envelope, SHA-256 hash-chain, synchronous append/fsync semantics, locking, permissions, and known integrity limitations in `docs/evidence-storage.md`.
+- [x] Implement private-mode JSONL append with a global hash chain, exclusive file locking, complete-chain verification before append, and fsync-before-acknowledgement.
+- [x] Reject symlinks, hard links, non-regular files, unsafe permissions, malformed/incomplete records, duplicate JSON keys, and hash-chain tampering.
+- [x] Verify concurrent appenders serialize into one valid chain using an OS-level file lock.
+- [x] Connect the HTTP transport event sink to the durable store; a successful decoy response follows a persisted and verifiable event.
+- [x] CI run #116 passed 73 tests and Ruff on Python 3.12, 3.13, and 3.14.
+- [ ] Design external head-hash anchoring and safe export/retention before adding automatic deletion or claiming whole-file tamper detection.
+
 ## Resume here — exact next steps
-1. Harden TLS transport defaults: require TLS 1.2 or newer and test that incomplete TLS handshakes are closed at the configured timeout.
-2. Specify durable, tamper-evident telemetry storage, append semantics, retention, and failure behaviour before M3 implementation.
-3. Design the M3 evidence pipeline so storage failure cannot cause an unrecorded decoy response; define bounded queue/backpressure behaviour.
-4. Do not add public binding, production traffic interception, or decoy execution until isolation and independent fail-closed enforcement are implemented and tested.
-5. Continue updating this roadmap and CHANGELOG after every meaningful change.
+1. Review ambiguous-commit/retry behaviour and duplicate event IDs; define safe idempotency semantics.
+2. Add externally anchored checkpoints so whole-file rewrite or truncation can be detected; a local unanchored hash chain alone cannot provide this guarantee.
+3. Define evidence export and retention semantics that preserve chain continuity and checkpoint provenance.
+4. Measure append/verification throughput and design a bounded queue/backpressure strategy only if synchronous fsync is insufficient.
+5. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
 
 ## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
@@ -132,3 +142,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Started M3 with a documented append-only JSONL evidence format, SHA-256 hash chain, synchronous fsync, Linux file locking, restrictive file permissions, tamper/incomplete-record detection, and transport integration coverage. CI verification pending.
 
 - 2026-11-03: Fixed duplicate-JSON-key verification handling and corrected CRLF framing in the durable-store transport integration test. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14; initial M3 store is CI-verified.
+
+- 2026-11-03: M3 initial JSONL evidence store passed CI run #116: 73 tests and Ruff on Python 3.12–3.14. Store is append-only, hash-chained, fsync-before-ack, permission-restricted, locked across appenders, and integrated with the fail-closed local HTTP event sink.
