@@ -22,7 +22,7 @@
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
-**M2 — safe protocol simulation: started; pure HTTP response engine added, awaiting CI verification.**
+**M2 — safe protocol simulation: initial pure HTTP engine complete and CI-verified; no network listener yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -44,14 +44,14 @@
 - [x] Static routes for /, /login, /robots.txt; deterministic 404 for other paths.
 - [x] Decoy identity comes from profile data only; Host header is not reflected.
 - [x] Decoy identity fields reject control characters to prevent response-header injection.
-- [ ] Run CI for the new HTTP engine and safety tests.
+- [x] CI verified the HTTP engine and parser safety tests on Python 3.12, 3.13, and 3.14.
 - [ ] Add a structured request/session event model; do not store credentials by default.
 - [ ] Add a loopback-only optional transport adapter with bounded connections and explicit shutdown.
 - [ ] Add HTTPS/TLS adapter only after HTTP behaviour and TLS configuration are reviewed.
 
 ## CI verification record
-- GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs.
-- This run verified M1 before M2 HTTP files were added. The current M2 commits require their own CI run.
+- GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs (M1).
+- GitHub Actions run #45, commit `b69704b`: **success** on Python 3.12, 3.13, and 3.14. 41 tests passed; Ruff passed in all matrix jobs (M2 HTTP engine).
 - No local test run has been performed from a local checkout in this session.
 
 ## Milestones
@@ -93,14 +93,13 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - .github/workflows/python.yml — CI matrix.
 
 ## Resume here — exact next steps
-1. Check GitHub Actions for the commits adding the HTTP simulator. Fix all test/lint failures before expanding scope.
-2. Review parser edge cases: request line/header framing, body limits, path normalization, HEAD semantics, and profile identity injection.
-3. Add structured session/request events with correlation IDs and explicit redaction policy.
-4. Implement an optional loopback-only HTTP transport adapter. No public bind, backend forwarding, filesystem access, or shell execution.
-5. Add TLS only after HTTP adapter security tests pass.
-6. Update this roadmap and CHANGELOG after every meaningful change.
+1. Add structured session/request events with correlation IDs, source metadata supplied by a transport adapter, and an explicit redaction policy.
+2. Implement an optional loopback-only HTTP transport adapter with connection/time limits and explicit shutdown. No public bind, backend forwarding, filesystem access, or shell execution.
+3. Add integration tests for fragmented reads, slow clients, connection limits, and graceful shutdown.
+4. Add TLS only after HTTP adapter security tests pass.
+5. Update this roadmap and CHANGELOG after every meaningful change.
 
 ## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
 - 2026-11-03: Completed M1 configuration, registry, discovery, CLI, docs, and CI verification (run #27 green on Python 3.12–3.14).
-- 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine and parser safety tests. CI pending.
+- 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine, bounded strict parser, fixed fabricated routes, and profile/header safety checks. CI run #45 passed 41 tests and Ruff on Python 3.12–3.14.
