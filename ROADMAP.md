@@ -22,7 +22,7 @@
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
-**M2 — safe protocol simulation: pure HTTP engine and structured session-event model implemented; event model awaits CI verification. No network listener yet.**
+**M2 — safe protocol simulation: pure HTTP engine and structured session-event model implemented; event model CI-verified on Python 3.12–3.14. No network listener yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -49,11 +49,12 @@
 - [x] Record UTC timestamps, profile ID, method, path, response status, and optional source IP/port.
 - [x] Strip query strings and fragments; request bodies, cookies, authorization headers, and form values are outside the event schema.
 - [x] Keep User-Agent capture disabled by default; optional capture is bounded and control-character sanitized.
-- [ ] Verify event model and tests in CI across Python 3.12–3.14.
+- [x] Verify event model and tests in CI across Python 3.12–3.14 (run #57: 51 tests passed and Ruff passed on all three versions).
 - [ ] Add a loopback-only optional transport adapter with bounded connections and explicit shutdown.
 - [ ] Add HTTPS/TLS adapter only after HTTP behaviour and TLS configuration are reviewed.
 
 ## CI verification record
+- GitHub Actions run #57, commit `727320a`: **success** on Python 3.12, 3.13, and 3.14. 51 tests passed; Ruff passed in all matrix jobs (structured telemetry).
 - GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs (M1).
 - GitHub Actions run #45, commit `b69704b`: **success** on Python 3.12, 3.13, and 3.14. 41 tests passed; Ruff passed in all matrix jobs (M2 HTTP engine).
 - No local test run has been performed from a local checkout in this session.
@@ -109,3 +110,4 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine, bounded strict parser, fixed fabricated routes, and profile/header safety checks. CI run #45 passed 41 tests and Ruff on Python 3.12–3.14.
 
 - 2026-11-03: Added the immutable session event model, per-session sequence/correlation, UTC timestamps, source metadata validation, query-string removal, and opt-in sanitized User-Agent capture. Added focused unit tests; CI verification pending.
+- 2026-11-03: Corrected a Ruff import-style finding; GitHub Actions run #57 passed 51 tests and Ruff on Python 3.12–3.14. Structured telemetry model is now CI-verified.
