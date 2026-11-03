@@ -128,6 +128,7 @@ class HttpDecoy:
             ).encode("utf-8")
         elif path == "/robots.txt":
             status, reason = 200, "OK"
+            content_type = "text/plain; charset=utf-8"
             body = b"User-agent: *\nDisallow: /private/\n"
         elif path == "/login":
             status, reason = 200, "OK"
