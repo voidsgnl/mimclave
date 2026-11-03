@@ -5,11 +5,11 @@ authorization headers, query strings, and form values are never represented
 by this event schema.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from ipaddress import ip_address
 from threading import Lock
-from typing import Callable
 from urllib.parse import urlsplit
 from uuid import uuid4
 
