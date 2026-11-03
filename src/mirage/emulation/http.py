@@ -106,8 +106,8 @@ class HttpDecoy:
     """Generate fixed fabricated pages for a configured HTTP decoy profile."""
 
     def __init__(self, profile: DecoyProfile) -> None:
-        if profile.protocol != Protocol.HTTP:
-            raise ValueError("HttpDecoy requires a profile with protocol='http'")
+        if profile.protocol not in {Protocol.HTTP, Protocol.HTTPS}:
+            raise ValueError("HTTP emulation requires an http or https decoy profile")
         if not profile.service_name.isascii() or not profile.service_version.isascii():
             raise ValueError("HTTP Server identity must contain ASCII characters only")
         self.profile = profile
