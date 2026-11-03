@@ -48,7 +48,7 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise ValueError(f"duplicate JSON key: {key}")
+            raise EvidenceIntegrityError(f"duplicate JSON key: {key}")
         result[key] = value
     return result
 
@@ -195,7 +195,7 @@ class JsonlEvidenceStore:
                 )
             try:
                 envelope = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
-            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 raise EvidenceIntegrityError(
                     f"evidence record {line_number} is not valid JSON"
                 ) from exc
