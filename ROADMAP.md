@@ -63,6 +63,7 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #64, commit `4c44ce2`: **success** on Python 3.12, 3.13, and 3.14. 57 tests passed; Ruff passed in all matrix jobs (loopback HTTP transport).
 - GitHub Actions run #57, commit `727320a`: **success** on Python 3.12, 3.13, and 3.14. 51 tests passed; Ruff passed in all matrix jobs (structured telemetry).
 - GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs (M1).
@@ -93,6 +94,8 @@ Independent enforcement; MIRAGE crash, policy parse failure, or telemetry outage
 Evidence-backed correlation with confidence/provenance, operator API/UI, alerting, audit/export.
 
 ## Key files
+- src/mirage/telemetry/store.py — append-only JSONL evidence store with SHA-256 chain verification and fsync.
+- docs/evidence-storage.md — evidence envelope, durability, locking, permissions, and integrity limitations.
 - ROADMAP.md — canonical roadmap and new-chat handoff.
 - src/mirage/config/models.py — immutable typed models.
 - src/mirage/config/validation.py — port/protocol compatibility rules.
@@ -127,3 +130,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 - 2026-11-03: Hardened HTTPS policy to require TLS 1.2+, and tested stalled-handshake timeout cleanup; CI run #99 passed 63 tests and Ruff on Python 3.12–3.14.
 - 2026-11-03: Started M3 with a documented append-only JSONL evidence format, SHA-256 hash chain, synchronous fsync, Linux file locking, restrictive file permissions, tamper/incomplete-record detection, and transport integration coverage. CI verification pending.
+
+- 2026-11-03: Fixed duplicate-JSON-key verification handling and corrected CRLF framing in the durable-store transport integration test. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14; initial M3 store is CI-verified.
