@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: initial append-only, hash-chained JSONL evidence store implemented and CI-verified (73 tests and Ruff on Python 3.12–3.14).**
+**M3 — telemetry and evidence: append-only hash-chained JSONL store with idempotent event append implemented and CI-verified (75 tests on Python 3.12–3.14).**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -63,6 +63,7 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #123, commit `85b6fe0`: **success** on Python 3.12, 3.13, and 3.14. 75 tests passed; Ruff passed in all matrix jobs (idempotent evidence append and conflict handling).
 - GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #64, commit `4c44ce2`: **success** on Python 3.12, 3.13, and 3.14. 57 tests passed; Ruff passed in all matrix jobs (loopback HTTP transport).
@@ -118,11 +119,13 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Verify concurrent appenders serialize into one valid chain using an OS-level file lock.
 - [x] Connect the HTTP transport event sink to the durable store; a successful decoy response follows a persisted and verifiable event.
 - [x] CI run #116 passed 73 tests and Ruff on Python 3.12, 3.13, and 3.14.
+- [x] Idempotent append: identical event ID/payload retries return the original receipt; conflicting payload reuse raises `EvidenceEventConflictError`; duplicate IDs in existing logs are rejected.
+- [x] CI run #123 passed 75 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [ ] Design external head-hash anchoring and safe export/retention before adding automatic deletion or claiming whole-file tamper detection.
 
 ## Resume here — exact next steps
 1. [x] Define safe idempotency semantics: stable event ID retries return the original receipt, conflicting payload reuse is rejected, and duplicate IDs in a log invalidate the log.
-2. Add externally anchored checkpoints so whole-file rewrite or truncation can be detected; a local unanchored hash chain alone cannot provide this guarantee.
+2. Design and implement an external checkpoint interface with monotonic generations and prefix verification; do not pretend a local sidecar is an independent anchor.
 3. Define evidence export and retention semantics that preserve chain continuity and checkpoint provenance.
 4. Measure append/verification throughput and design a bounded queue/backpressure strategy only if synchronous fsync is insufficient.
 5. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
@@ -146,3 +149,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: M3 initial JSONL evidence store passed CI run #116: 73 tests and Ruff on Python 3.12–3.14. Store is append-only, hash-chained, fsync-before-ack, permission-restricted, locked across appenders, and integrated with the fail-closed local HTTP event sink.
 
 - 2026-11-03: Implemented idempotent append by stable event ID. Identical retries return the original receipt without a duplicate record; conflicting payload reuse is rejected; duplicate IDs in an existing log fail verification. Added regression tests; CI verification pending.
+
+- 2026-11-03: Idempotent event append is CI-verified in run #123: 75 tests and Ruff passed on Python 3.12–3.14. A retry with the same event ID and identical payload returns the original receipt; a conflicting payload is rejected; duplicate IDs invalidate the log.
