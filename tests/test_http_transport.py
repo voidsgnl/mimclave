@@ -5,6 +5,7 @@ import pytest
 from mirage.config.models import DecoyProfile, Protocol
 from mirage.emulation.http import HttpDecoy
 from mirage.telemetry.events import SessionEvent
+from mirage.telemetry.store import JsonlEvidenceStore
 from mirage.transport.http_server import HttpDecoyServer
 
 
@@ -167,6 +168,29 @@ def test_telemetry_sink_failure_suppresses_decoy_response() -> None:
             assert await asyncio.wait_for(reader.read(), timeout=1.0) == b""
             writer.close()
             await writer.wait_closed()
+        finally:
+            await server.close()
+
+    asyncio.run(scenario())
+
+
+
+def test_transport_uses_durable_evidence_store_before_response(tmp_path) -> None:
+    async def scenario() -> None:
+        store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+        server = HttpDecoyServer(make_decoy(), event_sink=store.append)
+        await server.start()
+        try:
+            reader, writer = await asyncio.open_connection(*server.address)
+            writer.write(b"GET / HTTP/1.1\\r\\nHost: local.test\\r\\n\\r\\n")
+            await writer.drain()
+            response = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+
+            assert response.startswith(b"HTTP/1.1 200 OK")
+            verification = store.verify()
+            assert verification.record_count == 1
         finally:
             await server.close()
 
