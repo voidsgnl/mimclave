@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: append-only hash-chained JSONL store with idempotent event append implemented and CI-verified (75 tests on Python 3.12–3.14).**
+**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, and external checkpoint interface implemented and CI-verified (79 tests on Python 3.12–3.14). No production remote anchor adapter yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -63,6 +63,7 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #135, commit `eb0414a`: **success** on Python 3.12, 3.13, and 3.14. 79 tests passed; Ruff passed in all matrix jobs (external checkpoint interface, anchored-prefix verification, rollback/replacement detection).
 - GitHub Actions run #123, commit `85b6fe0`: **success** on Python 3.12, 3.13, and 3.14. 75 tests passed; Ruff passed in all matrix jobs (idempotent evidence append and conflict handling).
 - GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
 - GitHub Actions run #116, commit `9125a26`: **success** on Python 3.12, 3.13, and 3.14. 73 tests passed; Ruff passed in all matrix jobs (initial M3 JSONL evidence store and transport integration).
@@ -121,6 +122,9 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] CI run #116 passed 73 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Idempotent append: identical event ID/payload retries return the original receipt; conflicting payload reuse raises `EvidenceEventConflictError`; duplicate IDs in existing logs are rejected.
 - [x] CI run #123 passed 75 tests and Ruff on Python 3.12, 3.13, and 3.14.
+- [x] Define `CheckpointAnchor` with monotonic generations and atomic compare-and-set; implement checkpoint publication and anchored-prefix verification.
+- [x] Test that anchored checkpoints detect log truncation and replacement, and that compare-and-set conflicts are surfaced.
+- [x] CI run #135 passed 79 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
 - [ ] Implement a production external anchor adapter with independently protected durable state; an in-memory test double is not a production anchor.
 
@@ -154,3 +158,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Idempotent event append is CI-verified in run #123: 75 tests and Ruff passed on Python 3.12–3.14. A retry with the same event ID and identical payload returns the original receipt; a conflicting payload is rejected; duplicate IDs invalidate the log.
 
 - 2026-11-03: Added the external checkpoint contract and store operations. Checkpoints commit generation, record count, and head hash; verification detects truncation and replacement of an anchored prefix. CI verification pending. Only the interface and an in-memory test double exist; no production remote anchor is included.
+
+- 2026-11-03: External checkpoint interface and anchored-prefix verification passed CI run #135: 79 tests and Ruff on Python 3.12–3.14. Truncation and replacement of a previously anchored prefix are detected. No production remote anchor adapter is included; the tests use an in-memory contract implementation.
