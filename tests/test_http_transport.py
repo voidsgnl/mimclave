@@ -35,7 +35,7 @@ def test_fragmented_request_is_answered_and_emitted_as_event() -> None:
         await server.start()
         try:
             reader, writer = await asyncio.open_connection(*server.address)
-            writer.write(b"GET /account?token=private HTTP/1.1\r\n")
+            writer.write(b"GET /?token=private HTTP/1.1\r\n")
             await writer.drain()
             writer.write(b"Host: untrusted.example\r\n\r\n")
             await writer.drain()
@@ -47,7 +47,7 @@ def test_fragmented_request_is_answered_and_emitted_as_event() -> None:
             assert b"portal.example.test" in response
             assert b"untrusted.example" not in response
             assert len(events) == 1
-            assert events[0].path == "/account"
+            assert events[0].path == "/"
             assert events[0].source_ip in {"127.0.0.1", "::1"}
             assert events[0].source_port is not None
         finally:
