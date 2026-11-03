@@ -21,9 +21,10 @@
 
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
-**M1 — configuration and read-only discovery: implementation substantially complete; CI verification pending.**
+**M1 — configuration and read-only discovery: COMPLETE.**  
+**M2 — safe protocol simulation: started; pure HTTP response engine added, awaiting CI verification.**
 
-### Implemented
+### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
 - [x] Immutable endpoint, decoy profile, protected-service, and listener-mapping models.
 - [x] Versioned TOML loader with structural validation and actionable parse errors.
@@ -31,16 +32,26 @@
 - [x] Protocol/port compatibility checks; deliberate mismatches require an explicit reason.
 - [x] TCP conventions are not incorrectly applied to UDP mappings.
 - [x] Example TOML config keeps real protected-service inventory separate from decoy identity.
-- [x] Read-only Linux `/proc/net` discovery for TCP listeners and bound UDP sockets.
-- [x] `mirage discover` / `python -m mirage discover` CLI.
-- [x] `mirage validate-config <path>` CLI with distinct exit codes for valid, policy-invalid, and load-invalid configurations.
+- [x] Read-only Linux /proc/net discovery for TCP listeners and bound UDP sockets.
+- [x] mirage discover and python -m mirage discover CLI.
+- [x] mirage validate-config <path> CLI with distinct exit codes for valid, policy-invalid, and load-invalid configurations.
 - [x] GitHub Actions matrix for Python 3.12, 3.13, and 3.14.
-- [x] Fixed malformed console-script metadata in `pyproject.toml`.
-- [x] Added durable project handoff and changelog updates.
+- [x] Package installation, 25 tests, and Ruff checks passed on all three Python versions.
 
-### CI / verification
-- Earlier runs exposed malformed TOML in `pyproject.toml` and Ruff import-order lint findings. Packaging metadata is now corrected; import-order lint was removed from the initial Ruff rule set while E/F/UP/B checks remain enabled.
-- The latest completed verification at commit `08e4316` ran **25 tests successfully on Python 3.12**, but Ruff failed on one 113-character line in `config/validation.py`. That line has now been wrapped. A fresh CI run for the latest commits is pending; do not mark M1 complete until all three Python versions pass tests and lint.
+### M2 started
+- [x] Pure, transport-free HTTP request parser and deterministic fabricated response generator.
+- [x] Bounded request sizes; reject unsupported methods, request bodies, transfer-encoding, duplicate headers, malformed framing, and ambiguous targets.
+- [x] Static routes for /, /login, /robots.txt; deterministic 404 for other paths.
+- [x] Decoy identity comes from profile data only; Host header is not reflected.
+- [x] Decoy identity fields reject control characters to prevent response-header injection.
+- [ ] Run CI for the new HTTP engine and safety tests.
+- [ ] Add a structured request/session event model; do not store credentials by default.
+- [ ] Add a loopback-only optional transport adapter with bounded connections and explicit shutdown.
+- [ ] Add HTTPS/TLS adapter only after HTTP behaviour and TLS configuration are reviewed.
+
+## CI verification record
+- GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs.
+- This run verified M1 before M2 HTTP files were added. The current M2 commits require their own CI run.
 - No local test run has been performed from a local checkout in this session.
 
 ## Milestones
@@ -48,17 +59,10 @@
 ### M0 — Foundation — COMPLETE
 Repository conventions, architecture, requirements, threat model, packaging baseline.
 
-### M1 — Configuration and discovery — IN PROGRESS
-Exit criteria:
-1. Config parsing rejects malformed/unsupported input with useful diagnostics.
-2. Duplicate profile IDs and duplicate listener targets are rejected.
-3. Missing profile references and protocol/port mismatches are rejected.
-4. Overrides require a documented reason.
-5. Real service inventory remains separate from decoy identity.
-6. Read-only discovery is tested and labels TCP listeners vs UDP bound sockets accurately.
-7. Package install, tests, lint, and CI pass on Python 3.12–3.14.
+### M1 — Configuration and discovery — COMPLETE
+Versioned config, decoy profile registry, protocol compatibility, read-only host discovery, CLI, docs, tests, and green CI matrix.
 
-### M2 — Safe protocol simulation
+### M2 — Safe protocol simulation — IN PROGRESS
 HTTP then HTTPS/TLS emulation; coherent per-session identities; fabricated safe responses; no shell or production backend forwarding.
 
 ### M3 — Telemetry and evidence
@@ -74,26 +78,29 @@ Independent enforcement; MIRAGE crash, policy parse failure, or telemetry outage
 Evidence-backed correlation with confidence/provenance, operator API/UI, alerting, audit/export.
 
 ## Key files
-- `ROADMAP.md` — canonical roadmap and new-chat handoff.
-- `src/mirage/config/models.py` — immutable typed models.
-- `src/mirage/config/validation.py` — port/protocol compatibility rules.
-- `src/mirage/config/loader.py` — TOML loading and structural validation.
-- `src/mirage/config/registry.py` — profile resolution and registry validation.
-- `src/mirage/discovery/ports.py` — read-only Linux socket discovery.
-- `src/mirage/cli.py` — CLI.
-- `config/example.toml` — example configuration.
-- `docs/configuration.md` — TOML schema and validation rules.
-- `tests/` — automated tests.
-- `.github/workflows/python.yml` — CI matrix.
+- ROADMAP.md — canonical roadmap and new-chat handoff.
+- src/mirage/config/models.py — immutable typed models.
+- src/mirage/config/validation.py — port/protocol compatibility rules.
+- src/mirage/config/loader.py — TOML loading and structural validation.
+- src/mirage/config/registry.py — profile resolution and registry validation.
+- src/mirage/discovery/ports.py — read-only Linux socket discovery.
+- src/mirage/emulation/http.py — pure HTTP decoy response engine; no socket listener.
+- src/mirage/cli.py — CLI.
+- config/example.toml — example configuration.
+- docs/configuration.md — TOML schema and validation rules.
+- docs/protocol-simulation.md — M2 design and security boundaries.
+- tests/ — automated tests.
+- .github/workflows/python.yml — CI matrix.
 
 ## Resume here — exact next steps
-1. Check the GitHub Actions run triggered by the latest `validation.py` / changelog commits. The previously observed 25-test pass was on Python 3.12 only; Ruff then found one long line, now fixed.
-2. Confirm all tests and Ruff checks pass on Python 3.12, 3.13, and 3.14.
-3. If green, close M1 and move to the read-only discovery-to-config comparison/report. Do not enable traffic interception.
-4. Then design M2 HTTP/TLS emulation, including session consistency and safe fabricated responses, before implementing listeners.
-5. Keep this roadmap, changelog, and README synchronized after every meaningful change.
+1. Check GitHub Actions for the commits adding the HTTP simulator. Fix all test/lint failures before expanding scope.
+2. Review parser edge cases: request line/header framing, body limits, path normalization, HEAD semantics, and profile identity injection.
+3. Add structured session/request events with correlation IDs and explicit redaction policy.
+4. Implement an optional loopback-only HTTP transport adapter. No public bind, backend forwarding, filesystem access, or shell execution.
+5. Add TLS only after HTTP adapter security tests pass.
+6. Update this roadmap and CHANGELOG after every meaningful change.
 
 ## Handoff log
-- 2026-11-03: Created roadmap/handoff with project decisions, milestones, and resume steps.
-- 2026-11-03: Added TOML loader, profile registry, sample config, validation CLI, schema documentation, and edge-case tests.
-- 2026-11-03: Corrected `pyproject.toml` console script, adjusted Ruff lint selection, and fixed the remaining E501 finding. Latest CI verification is pending.
+- 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
+- 2026-11-03: Completed M1 configuration, registry, discovery, CLI, docs, and CI verification (run #27 green on Python 3.12–3.14).
+- 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine and parser safety tests. CI pending.
