@@ -35,3 +35,8 @@ All notable project changes are documented here.
 
 ## Security
 - HTTPS decoy servers now reject TLS contexts configured below TLS 1.2. Added tests for weak TLS policy rejection and timeout closure of clients that stall before TLS negotiation.
+
+
+### M3 — In progress
+- Specified and implemented an append-only JSONL evidence store with a SHA-256 hash chain, synchronous fsync, file locking, restrictive permissions, complete-chain verification, and rejection of tampered or incomplete records.
+- Added tests for concurrent appenders, tampering, incomplete records, duplicate JSON keys, symlinks, hard links, unsafe permissions, and HTTP transport integration. CI verification pending.
