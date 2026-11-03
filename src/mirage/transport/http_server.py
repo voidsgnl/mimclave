@@ -1,6 +1,7 @@
 """Loopback-only HTTP transport for the pure MIRAGE HTTP decoy."""
 
 import asyncio
+import ssl
 from collections.abc import Callable
 from ipaddress import ip_address
 from typing import Any
@@ -27,6 +28,7 @@ class HttpDecoyServer:
         port: int = 0,
         max_connections: int = 32,
         request_timeout: float = 3.0,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         try:
             address = ip_address(host)
@@ -40,8 +42,15 @@ class HttpDecoyServer:
             raise ValueError("max_connections must be positive")
         if request_timeout <= 0:
             raise ValueError("request_timeout must be positive")
+        if decoy.profile.protocol.value == "https" and ssl_context is None:
+            raise ValueError("HTTPS decoys require an explicit server-side SSLContext")
+        if decoy.profile.protocol.value == "http" and ssl_context is not None:
+            raise ValueError("HTTP decoys must not be configured with a TLS context")
+        if ssl_context is not None and ssl_context.protocol != ssl.PROTOCOL_TLS_SERVER:
+            raise ValueError("ssl_context must use ssl.PROTOCOL_TLS_SERVER")
         self.decoy = decoy
         self.event_sink = event_sink
+        self.ssl_context = ssl_context
         self.host = str(address)
         self.port = port
         self.max_connections = max_connections
@@ -60,6 +69,10 @@ class HttpDecoyServer:
             host=self.host,
             port=self.port,
             limit=MAX_REQUEST_BYTES + 1,
+            ssl=self.ssl_context,
+            ssl_handshake_timeout=(
+                self.request_timeout if self.ssl_context is not None else None
+            ),
         )
 
     @property
@@ -149,3 +162,35 @@ class HttpDecoyServer:
                 pass
             if task is not None:
                 self._tasks.discard(task)
+
+
+
+class HttpsDecoyServer(HttpDecoyServer):
+    """Explicit TLS transport for an HTTPS decoy profile.
+
+    The caller owns certificate provisioning and trust policy. MIRAGE never
+    generates, installs, or silently trusts certificates.
+    """
+
+    def __init__(
+        self,
+        decoy: HttpDecoy,
+        *,
+        event_sink: Callable[[SessionEvent], None],
+        ssl_context: ssl.SSLContext,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        max_connections: int = 32,
+        request_timeout: float = 3.0,
+    ) -> None:
+        if decoy.profile.protocol.value != "https":
+            raise ValueError("HttpsDecoyServer requires a profile with protocol='https'")
+        super().__init__(
+            decoy,
+            event_sink=event_sink,
+            host=host,
+            port=port,
+            max_connections=max_connections,
+            request_timeout=request_timeout,
+            ssl_context=ssl_context,
+        )
