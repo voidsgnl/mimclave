@@ -22,7 +22,7 @@
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
-**M2 — safe protocol simulation: initial pure HTTP engine complete and CI-verified; no network listener yet.**
+**M2 — safe protocol simulation: pure HTTP engine and structured session-event model implemented; event model awaits CI verification. No network listener yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -45,7 +45,11 @@
 - [x] Decoy identity comes from profile data only; Host header is not reflected.
 - [x] Decoy identity fields reject control characters to prevent response-header injection.
 - [x] CI verified the HTTP engine and parser safety tests on Python 3.12, 3.13, and 3.14.
-- [ ] Add a structured request/session event model; do not store credentials by default.
+- [x] Add immutable structured HTTP session events with per-session correlation IDs and strictly increasing sequence numbers.
+- [x] Record UTC timestamps, profile ID, method, path, response status, and optional source IP/port.
+- [x] Strip query strings and fragments; request bodies, cookies, authorization headers, and form values are outside the event schema.
+- [x] Keep User-Agent capture disabled by default; optional capture is bounded and control-character sanitized.
+- [ ] Verify event model and tests in CI across Python 3.12–3.14.
 - [ ] Add a loopback-only optional transport adapter with bounded connections and explicit shutdown.
 - [ ] Add HTTPS/TLS adapter only after HTTP behaviour and TLS configuration are reviewed.
 
@@ -103,3 +107,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
 - 2026-11-03: Completed M1 configuration, registry, discovery, CLI, docs, and CI verification (run #27 green on Python 3.12–3.14).
 - 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine, bounded strict parser, fixed fabricated routes, and profile/header safety checks. CI run #45 passed 41 tests and Ruff on Python 3.12–3.14.
+
+- 2026-11-03: Added the immutable session event model, per-session sequence/correlation, UTC timestamps, source metadata validation, query-string removal, and opt-in sanitized User-Agent capture. Added focused unit tests; CI verification pending.
