@@ -124,6 +124,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] CI run #123 passed 75 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Define `CheckpointAnchor` with monotonic generations and atomic compare-and-set; implement checkpoint publication and anchored-prefix verification.
 - [x] Test that anchored checkpoints detect log truncation and replacement, and that compare-and-set conflicts are surfaced.
+- [x] Add verified full-chain export with optional checkpoint verification, private destination permissions, no-overwrite semantics, and fsync.
 - [x] CI run #135 passed 79 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
 - [ ] Implement a production external anchor adapter with independently protected durable state; an in-memory test double is not a production anchor.
@@ -160,3 +161,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Added the external checkpoint contract and store operations. Checkpoints commit generation, record count, and head hash; verification detects truncation and replacement of an anchored prefix. CI verification pending. Only the interface and an in-memory test double exist; no production remote anchor is included.
 
 - 2026-11-03: External checkpoint interface and anchored-prefix verification passed CI run #135: 79 tests and Ruff on Python 3.12–3.14. Truncation and replacement of a previously anchored prefix are detected. No production remote anchor adapter is included; the tests use an in-memory contract implementation.
+
+- 2026-11-03: Added verified evidence export. It verifies the full chain (and optional external checkpoint), copies without modifying the source, refuses overwrite, applies mode 0600, and fsyncs the file and directory. Automatic deletion/rotation remains out of scope. CI verification pending.
