@@ -49,7 +49,7 @@ def test_https_transport_requires_explicit_server_tls_context(
     server_context, _ = tls_material
     with pytest.raises(ValueError, match="explicit server-side SSLContext"):
         HttpDecoyServer(make_https_decoy(), event_sink=lambda event: None)
-    with pytest.raises(ValueError, match="server-side SSLContext"):
+    with pytest.raises(ValueError, match="PROTOCOL_TLS_SERVER"):
         HttpsDecoyServer(
             make_https_decoy(),
             event_sink=lambda event: None,
