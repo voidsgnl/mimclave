@@ -22,7 +22,7 @@
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
-**M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP transport, and explicit HTTPS/TLS transport implemented; HTTPS verification pending CI.**
+**M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP transport, and explicit HTTPS/TLS transport implemented and CI-verified on Python 3.12–3.14.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -105,11 +105,11 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - .github/workflows/python.yml — CI matrix.
 
 ## Resume here — exact next steps
-1. Add structured session/request events with correlation IDs, source metadata supplied by a transport adapter, and an explicit redaction policy.
-2. Implement an optional loopback-only HTTP transport adapter with connection/time limits and explicit shutdown. No public bind, backend forwarding, filesystem access, or shell execution.
-3. Add integration tests for fragmented reads, slow clients, connection limits, and graceful shutdown.
-4. Add TLS only after HTTP adapter security tests pass.
-5. Update this roadmap and CHANGELOG after every meaningful change.
+1. Review TLS handshake timeout and failed-handshake resource handling; add regression tests if gaps are found.
+2. Specify durable, tamper-evident telemetry storage, append semantics, retention, and failure behaviour before M3 implementation.
+3. Design the M3 evidence pipeline so storage failure cannot cause an unrecorded decoy response; define bounded queue/backpressure behaviour.
+4. Do not add public binding, production traffic interception, or decoy execution until isolation and independent fail-closed enforcement are implemented and tested.
+5. Continue updating this roadmap and CHANGELOG after every meaningful change.
 
 ## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
