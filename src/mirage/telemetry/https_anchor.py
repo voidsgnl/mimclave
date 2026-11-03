@@ -40,6 +40,8 @@ class HttpsCheckpointAnchor:
         *,
         timeout: float = 5.0,
     ) -> None:
+        if any(ord(char) < 0x21 or ord(char) == 0x7F for char in endpoint):
+            raise ValueError("checkpoint endpoint must not contain whitespace or control characters")
         parsed = urlsplit(endpoint)
         try:
             port = parsed.port
@@ -58,8 +60,12 @@ class HttpsCheckpointAnchor:
             raise ValueError(
                 "checkpoint endpoint must be an HTTPS URL without credentials, query, or fragment"
             )
-        if not bearer_token or bearer_token.strip() != bearer_token:
-            raise ValueError("bearer token must be non-empty and have no surrounding whitespace")
+        if (
+            not bearer_token
+            or bearer_token.strip() != bearer_token
+            or any(ord(char) < 0x21 or ord(char) == 0x7F for char in bearer_token)
+        ):
+            raise ValueError("bearer token must be non-empty and contain no whitespace or control characters")
         if timeout <= 0:
             raise ValueError("timeout must be positive")
 
@@ -180,7 +186,7 @@ class HttpsCheckpointAnchor:
     @staticmethod
     def _decode_checkpoint(data: bytes) -> EvidenceCheckpoint:
         try:
-            payload = json.loads(data)
+            payload = json.loads(data, object_pairs_hook=_reject_duplicate_keys)
             if not isinstance(payload, dict) or set(payload) != {
                 "generation", "record_count", "head_hash"
             }:
@@ -205,6 +211,15 @@ class HttpsCheckpointAnchor:
             and etag.startswith('"')
             and etag.endswith('"')
             and not etag.startswith('W/')
-            and "\r" not in etag
-            and "\n" not in etag
+            and '"' not in etag[1:-1]
+            and all(0x21 <= ord(char) <= 0x7E for char in etag[1:-1])
         )
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
