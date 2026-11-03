@@ -5,6 +5,8 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- Added immutable structured HTTP session events with per-session correlation IDs, sequence ordering, UTC timestamps, profile/request/response metadata, and validated source addresses.
+- Added conservative telemetry defaults: query strings are removed, User-Agent capture is opt-in, and request bodies and credential-bearing headers are not represented.
 - Created the initial project foundation and documented MIRAGE's purpose.
 - Added immutable typed models for endpoints, decoy profiles, protected-service inventory, and listener mappings.
 - Added protocol/port compatibility validation with explicit, reason-required overrides for nonstandard deployments.
