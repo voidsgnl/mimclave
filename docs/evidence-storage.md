@@ -47,3 +47,15 @@ The hash chain establishes one total append order for the file. Per-session sequ
 
 ## Implementation status
 The first implementation is in `src/mirage/telemetry/store.py` as `JsonlEvidenceStore`. It serializes only the existing `SessionEvent` fields, verifies the entire existing chain before each append, serializes appenders with `flock`, writes with append semantics, and calls `fsync` before returning an `EvidenceReceipt`. The HTTP transport can use `store.append` directly as its required event sink. The initial tests are in `tests/test_evidence_store.py` and `tests/test_http_transport.py`. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14.
+
+
+## Idempotency and retry semantics
+
+The caller must retain and reuse the same immutable `SessionEvent` (especially its `event_id`) when retrying an append whose outcome is uncertain. Under the exclusive file lock, append verifies the complete chain and searches for that event ID before writing:
+
+- If the ID is absent, the event is appended and fsynced.
+- If the ID exists with an identical serialized event payload, append returns the original receipt without writing a second record. This makes a retry safe after a caller lost the original success response or an fsync outcome was ambiguous but the complete record is present.
+- If the ID exists with a different payload, append raises `EvidenceEventConflictError`; it never overwrites or silently accepts the conflicting event.
+- A valid hash chain containing duplicate event IDs is rejected as an integrity error.
+
+This is idempotent append, not exactly-once delivery across arbitrary process/storage failures. If a crash leaves a partial trailing line, verification rejects the log and append stops; do not truncate or auto-repair evidence. Preserve the file for operator investigation. A retry cannot safely infer whether a partial write represented a committed event.
