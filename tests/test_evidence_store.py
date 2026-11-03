@@ -1,8 +1,6 @@
-import json
 import os
 import stat
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
 
 import pytest
 
@@ -108,3 +106,16 @@ def test_hard_link_evidence_path_is_rejected(tmp_path) -> None:
 
     with pytest.raises(EvidenceStoreError, match="hard links"):
         JsonlEvidenceStore(path).append(make_event())
+
+
+
+def test_duplicate_json_keys_are_rejected(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    store = JsonlEvidenceStore(path)
+    store.append(make_event())
+    line = path.read_text()
+    line = line.replace('{"event":', '{"schema_version":1,"event":', 1)
+    path.write_text(line)
+
+    with pytest.raises(EvidenceIntegrityError, match="duplicate JSON key"):
+        store.verify()
