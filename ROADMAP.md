@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, external checkpoint interface, and verified export implemented and CI-verified (82 tests on Python 3.12–3.14). No production remote anchor adapter or retention deletion yet.**
+**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client implemented; CI verification pending. No hosted anchor service or retention deletion yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -130,10 +130,11 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Add verified full-chain export with optional checkpoint verification, private destination permissions, no-overwrite semantics, and fsync.
 - [x] CI run #142 passed 82 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
-- [ ] Implement a production external anchor adapter with independently protected durable state; an in-memory test double is not a production anchor.
+- [x] Implement an HTTPS external-anchor client using verified TLS, bearer authentication, bounded responses, redirect refusal, and ETag conditional writes.
+- [ ] Deploy or integrate an independently administered checkpoint service implementing the documented durable compare-and-set API; client code alone does not create an independent anchor.
 
 ## Resume here — exact next steps
-1. Implement a production `CheckpointAnchor` adapter backed by independently protected durable storage; do not substitute a same-host sidecar and call it external.
+1. Deploy or integrate an independently administered checkpoint service implementing the HTTPS API in `docs/evidence-storage.md`; configure its secret outside source control and verify its durability/backup/authorization controls.
 2. Define segmented log rotation/retention with checkpoint handoff. Current exports preserve the complete genesis-linked chain; automatic pruning/deletion is intentionally absent.
 3. Run `python scripts/benchmark_evidence_store.py --events 1000` (and larger representative sizes) on target Linux storage; record results before considering indexing or bounded async batching.
 4. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
@@ -174,3 +175,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Benchmark smoke test passed in CI run #151 on Python 3.12–3.14. The short CI sample is only an execution check, not a performance baseline; target Linux measurements remain pending.
 
 - 2026-11-03: Corrected the handoff to mark M2 complete and clarify remaining M3 work: production external anchor adapter, segmented retention/rotation, and target-hardware performance measurements. The benchmark CI smoke test is verified but is not a performance baseline.
+
+- 2026-11-03: Added `HttpsCheckpointAnchor`: verified TLS, bearer authentication, no redirects, bounded response size, strong ETag validation, conditional create/update, and conflict handling. A separate hosted service is still required. CI verification pending.
