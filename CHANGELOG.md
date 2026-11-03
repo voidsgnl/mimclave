@@ -32,3 +32,6 @@ All notable project changes are documented here.
 - Decoy identity strings reject control characters; HTTP simulation does not reflect untrusted Host headers, access host files, execute commands, or forward to protected services.
 - Discovery performs no active network probes, shell execution, firewall changes, or traffic interception.
 - Real-service inventory remains separate from decoy identity configuration.
+
+## Security
+- HTTPS decoy servers now reject TLS contexts configured below TLS 1.2. Added tests for weak TLS policy rejection and timeout closure of clients that stall before TLS negotiation.
