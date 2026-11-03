@@ -8,7 +8,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from mirage.config.models import DecoyProfile, Endpoint, ListenerMapping, Protocol, ProtectedService
+from mirage.config.models import DecoyProfile, Endpoint, ListenerMapping, ProtectedService, Protocol
 
 
 class ConfigLoadError(ValueError):
