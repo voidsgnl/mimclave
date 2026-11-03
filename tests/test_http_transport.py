@@ -182,7 +182,7 @@ def test_transport_uses_durable_evidence_store_before_response(tmp_path) -> None
         await server.start()
         try:
             reader, writer = await asyncio.open_connection(*server.address)
-            writer.write(b"GET / HTTP/1.1\\r\\nHost: local.test\\r\\n\\r\\n")
+            writer.write(b"GET / HTTP/1.1\r\nHost: local.test\r\n\r\n")
             await writer.drain()
             response = await reader.read()
             writer.close()
