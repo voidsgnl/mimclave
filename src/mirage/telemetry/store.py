@@ -171,6 +171,79 @@ class JsonlEvidenceStore:
         finally:
             os.close(fd)
 
+    def export_verified(
+        self,
+        destination: str | Path,
+        *,
+        anchor: CheckpointAnchor | None = None,
+    ) -> StoreVerification:
+        """Copy a verified log to a new private file without modifying the source.
+
+        The destination must not already exist. If an anchor is supplied, its
+        committed prefix is verified before the export is created.
+        """
+        destination_path = Path(destination)
+        source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            source_fd = os.open(self.path, source_flags)
+        except OSError as exc:
+            raise EvidenceStoreError(f"cannot open evidence store: {exc}") from exc
+
+        try:
+            self._validate_file(source_fd)
+            fcntl.flock(source_fd, fcntl.LOCK_SH)
+            data = self._read_all(source_fd)
+            verification, event_index = self._scan_bytes(data)
+            if anchor is not None:
+                try:
+                    checkpoint = anchor.read()
+                except Exception as exc:
+                    raise CheckpointError("could not read external checkpoint") from exc
+                if checkpoint is None:
+                    raise CheckpointError(
+                        "external checkpoint has not been initialized"
+                    )
+                self._assert_checkpoint_prefix(
+                    checkpoint, verification, event_index
+                )
+
+            destination_flags = (
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+            )
+            try:
+                destination_fd = os.open(
+                    destination_path, destination_flags, 0o600
+                )
+            except OSError as exc:
+                raise EvidenceStoreError(
+                    f"cannot create evidence export: {exc}"
+                ) from exc
+            try:
+                self._write_all(destination_fd, data)
+                os.fsync(destination_fd)
+            except OSError as exc:
+                raise EvidenceStoreError(
+                    f"evidence export write failed; preserve and inspect partial file: {exc}"
+                ) from exc
+            finally:
+                os.close(destination_fd)
+            try:
+                self._fsync_directory(destination_path.parent)
+            except OSError as exc:
+                raise EvidenceStoreError(
+                    f"evidence export directory sync failed: {exc}"
+                ) from exc
+            return verification
+        except (EvidenceStoreError, CheckpointError):
+            raise
+        except OSError as exc:
+            raise EvidenceStoreError(f"evidence export failed: {exc}") from exc
+        finally:
+            os.close(source_fd)
+
     def publish_checkpoint(self, anchor: CheckpointAnchor) -> EvidenceCheckpoint:
         """Publish the current verified head to an independent monotonic anchor.
 
@@ -390,9 +463,12 @@ class JsonlEvidenceStore:
         )
 
     def _fsync_parent(self) -> None:
-        parent = self.path.parent
+        self._fsync_directory(self.path.parent)
+
+    @staticmethod
+    def _fsync_directory(directory: Path) -> None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-        directory_fd = os.open(parent, flags)
+        directory_fd = os.open(directory, flags)
         try:
             os.fsync(directory_fd)
         finally:
