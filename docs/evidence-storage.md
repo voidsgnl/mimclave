@@ -43,3 +43,7 @@ The hash chain establishes one total append order for the file. Per-session sequ
 - Fail closed when storage is unavailable or corrupt.
 - Test file permissions, symlink/hard-link rejection, concurrency, tampering, and transport integration.
 - Document limitations: whole-file rewrite/truncation requires external head-hash anchoring to detect.
+
+
+## Implementation status
+The first implementation is in `src/mirage/telemetry/store.py` as `JsonlEvidenceStore`. It serializes only the existing `SessionEvent` fields, verifies the entire existing chain before each append, serializes appenders with `flock`, writes with append semantics, and calls `fsync` before returning an `EvidenceReceipt`. The HTTP transport can use `store.append` directly as its required event sink. The initial tests are in `tests/test_evidence_store.py` and `tests/test_http_transport.py`. CI verification is pending.
