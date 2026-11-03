@@ -22,7 +22,8 @@
 ## Status — 2026-11-03
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
-**M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP transport, and explicit HTTPS/TLS transport implemented and CI-verified on Python 3.12–3.14.**
+**M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
+**M3 — telemetry and evidence: initial append-only, hash-chained JSONL evidence store implemented; CI verification pending.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -58,6 +59,8 @@
 - [x] Add explicit HTTPS/TLS transport requiring caller-provided server-side `ssl.SSLContext`; no automatic certificate generation or implicit trust.
 - [x] Keep HTTPS transport restricted to literal loopback IP addresses and bound TLS handshake time.
 - [x] Verify TLS handshake, trusted certificate validation, untrusted certificate rejection, and transport tests in CI across Python 3.12–3.14 (run #89; 62 tests and Ruff passed).
+- [x] Require TLS 1.2 or newer in caller-provided server contexts; reject weaker TLS policy.
+- [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
 - GitHub Actions run #64, commit `4c44ce2`: **success** on Python 3.12, 3.13, and 3.14. 57 tests passed; Ruff passed in all matrix jobs (loopback HTTP transport).
@@ -77,8 +80,8 @@ Versioned config, decoy profile registry, protocol compatibility, read-only host
 ### M2 — Safe protocol simulation — IN PROGRESS
 HTTP then HTTPS/TLS emulation; coherent per-session identities; fabricated safe responses; no shell or production backend forwarding.
 
-### M3 — Telemetry and evidence
-Structured event schema, session correlation, monotonic ordering, tamper-evident storage, export/retention.
+### M3 — Telemetry and evidence — IN PROGRESS
+Structured event schema, session correlation, monotonic ordering, append-only hash-chained JSONL storage, durable append/fsync, verification, export/retention.
 
 ### M4 — Isolation prototype
 Threat-modelled runtime, default-deny egress, no host mounts/credentials, least privilege, resource limits, namespaces/cgroups/seccomp; disposable VM tier for higher risk. Escape testing is a release gate.
@@ -121,3 +124,6 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Added the opt-in loopback-only HTTP server with bounded header reads, request timeouts, active-connection limits, event-sink-before-response behaviour, and explicit shutdown. GitHub Actions run #64 passed 57 tests and Ruff on Python 3.12–3.14.
 \n- 2026-11-03: Hardened the loopback HTTP transport: oversized headers are rejected, and telemetry sink exceptions close the connection without sending a decoy response. Added regression tests; CI verification pending.\n\n- 2026-11-03: Fixed escaped line endings in the two new transport tests; CI run #76 passed 59 tests and Ruff on Python 3.12–3.14. Oversized-header and telemetry-sink-failure behaviour is now verified.\n\n- 2026-11-03: Added `HttpsDecoyServer` using an explicit caller-supplied server-side TLS context, HTTPS profile enforcement, loopback-only binding, and bounded TLS handshake time. Added tests for trusted handshake, untrusted certificate rejection, and configuration restrictions; CI verification pending.\n\n- 2026-11-03: Fixed legacy HTTP-only expectation after extending the shared HTTP application engine to accept HTTPS profiles, and corrected TLS context validation test expectations. CI run #89 passed 62 tests and Ruff on Python 3.12–3.14; loopback HTTPS handshake and certificate verification are now verified.\n
 - 2026-11-03: Tightened HTTPS server-context validation to require TLS 1.2 or newer. Added regression coverage for rejecting weaker TLS policy and closing TCP clients that never send a TLS ClientHello at the configured handshake timeout. CI verification pending.
+
+- 2026-11-03: Hardened HTTPS policy to require TLS 1.2+, and tested stalled-handshake timeout cleanup; CI run #99 passed 63 tests and Ruff on Python 3.12–3.14.
+- 2026-11-03: Started M3 with a documented append-only JSONL evidence format, SHA-256 hash chain, synchronous fsync, Linux file locking, restrictive file permissions, tamper/incomplete-record detection, and transport integration coverage. CI verification pending.
