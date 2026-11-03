@@ -5,6 +5,8 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- Added an opt-in asyncio HTTP transport restricted to literal loopback IPs, with bounded request reads, timeouts, connection limits, structured event emission, and explicit shutdown.
+- Added transport integration tests for fragmented requests, malformed input, slow clients, connection limits, and shutdown; 57 tests pass in CI across Python 3.12–3.14.
 - CI verification for structured telemetry: 51 tests and Ruff passed on Python 3.12, 3.13, and 3.14.
 - Added immutable structured HTTP session events with per-session correlation IDs, sequence ordering, UTC timestamps, profile/request/response metadata, and validated source addresses.
 - Added conservative telemetry defaults: query strings are removed, User-Agent capture is opt-in, and request bodies and credential-bearing headers are not represented.
