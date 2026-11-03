@@ -48,6 +48,11 @@ class HttpDecoyServer:
             raise ValueError("HTTP decoys must not be configured with a TLS context")
         if ssl_context is not None and ssl_context.protocol != ssl.PROTOCOL_TLS_SERVER:
             raise ValueError("ssl_context must use ssl.PROTOCOL_TLS_SERVER")
+        if (
+            ssl_context is not None
+            and ssl_context.minimum_version < ssl.TLSVersion.TLSv1_2
+        ):
+            raise ValueError("ssl_context must require TLS 1.2 or newer")
         self.decoy = decoy
         self.event_sink = event_sink
         self.ssl_context = ssl_context
