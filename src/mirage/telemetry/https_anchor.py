@@ -42,9 +42,11 @@ class HttpsCheckpointAnchor:
     ) -> None:
         parsed = urlsplit(endpoint)
         try:
-            parsed.port
+            port = parsed.port
         except ValueError as exc:
             raise ValueError("checkpoint endpoint has an invalid port") from exc
+        if port == 0:
+            raise ValueError("checkpoint endpoint port must be nonzero")
         if (
             parsed.scheme != "https"
             or not parsed.hostname
