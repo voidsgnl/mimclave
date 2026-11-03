@@ -66,8 +66,15 @@ class SessionEvent:
             object.__setattr__(self, "source_ip", normalized)
         if self.source_port is not None and not 1 <= self.source_port <= 65535:
             raise ValueError("source_port must be between 1 and 65535")
-        if len(self.path) > MAX_PATH_LENGTH or any(ord(c) < 32 for c in self.path):
-            raise ValueError("path is invalid or exceeds the maximum length")
+        if (
+            not self.path.startswith("/")
+            or self.path.startswith("//")
+            or "?" in self.path
+            or "#" in self.path
+            or len(self.path) > MAX_PATH_LENGTH
+            or any(ord(c) < 32 for c in self.path)
+        ):
+            raise ValueError("path must be a bounded origin-form path without query or fragment")
         if self.user_agent is not None and len(self.user_agent) > MAX_USER_AGENT_LENGTH:
             raise ValueError("user_agent exceeds the maximum length")
 
@@ -113,12 +120,27 @@ class SessionEventFactory:
         if not path or len(path) > MAX_PATH_LENGTH or any(ord(c) < 32 for c in path):
             raise ValueError("request path is invalid or too long")
 
+        if not 100 <= status_code <= 599:
+            raise ValueError("status_code must be between 100 and 599")
+        if source_port is not None and not 1 <= source_port <= 65535:
+            raise ValueError("source_port must be between 1 and 65535")
+        if source_ip is not None:
+            try:
+                source_ip = str(ip_address(source_ip))
+            except ValueError as exc:
+                raise ValueError("source_ip must be a valid IP address") from exc
+        timestamp = self._clock()
+        _validate_utc(timestamp)
+        captured_agent = (
+            _clean_user_agent(user_agent)
+            if self.capture_user_agent
+            else None
+        )
+
         with self._lock:
             self._sequence += 1
             sequence = self._sequence
 
-        timestamp = self._clock()
-        _validate_utc(timestamp)
         return SessionEvent(
             event_id=str(uuid4()),
             session_id=self.session_id,
@@ -131,9 +153,5 @@ class SessionEventFactory:
             status_code=status_code,
             source_ip=source_ip,
             source_port=source_port,
-            user_agent=(
-                _clean_user_agent(user_agent)
-                if self.capture_user_agent
-                else None
-            ),
+            user_agent=captured_agent,
         )
