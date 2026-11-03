@@ -5,7 +5,6 @@ import pytest
 from mirage.config.loader import ConfigLoadError, load_config
 from mirage.config.registry import ProfileRegistry
 
-
 VALID_CONFIG = """
 version = 1
 
