@@ -135,7 +135,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 1. [x] Define safe idempotency semantics: stable event ID retries return the original receipt, conflicting payload reuse is rejected, and duplicate IDs in a log invalidate the log.
 2. [x] Implement an external checkpoint interface with monotonic generations, compare-and-set publication, and anchored-prefix verification. Production remote anchor adapter remains open.
 3. Define evidence export and retention semantics that preserve chain continuity and checkpoint provenance.
-4. Measure append/verification throughput and design a bounded queue/backpressure strategy only if synchronous fsync is insufficient.
+4. [x] Add a reproducible local benchmark for append and full-chain verification; collect representative measurements on target Linux hardware before deciding whether queue/backpressure or indexing is needed.
 5. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
 
 ## Handoff log
@@ -167,3 +167,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Added verified evidence export. It verifies the full chain (and optional external checkpoint), copies without modifying the source, refuses overwrite, applies mode 0600, and fsyncs the file and directory. Automatic deletion/rotation remains out of scope. CI verification pending.
 
 - 2026-11-03: Verified evidence export passed CI run #142: 82 tests and Ruff on Python 3.12–3.14. Export verifies the full chain and optional checkpoint, refuses overwrite, writes mode 0600, fsyncs file and directory, and leaves source unchanged. Automatic retention deletion remains intentionally unimplemented.
+
+- 2026-11-03: Added `scripts/benchmark_evidence_store.py` and a 10-event CI smoke test. The script reports append and full-verification throughput using a temporary file; target-hardware measurements remain pending. CI verification pending.
