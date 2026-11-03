@@ -18,7 +18,7 @@ Provide coherent, fabricated protocol responses to clients interacting with MIRA
 ## M2 implementation sequence
 
 1. Pure HTTP response engine: parse one bounded request and return deterministic fabricated pages. No network listener. Initial implementation is underway.
-2. Request/session event model: record timestamp, source metadata supplied by a future transport adapter, request method/path, response status, profile ID, and correlation ID. Never log secrets by default.
+2. Request/session event model: implemented as immutable `SessionEvent` records with a per-session correlation ID, strictly increasing sequence, UTC timestamp, profile ID, method/path/status, and validated source IP/port. Query strings and fragments are removed. User-Agent capture is disabled by default and can be explicitly enabled with bounded control-character sanitization. Request bodies, cookies, authorization headers, and form values are not part of the event schema.
 3. Loopback-only transport adapter: optional local test server with explicit bind address, connection/time limits, and no backend forwarding.
 4. TLS adapter: certificate/key handling and TLS policy; test certificates only for development, no implicit public bind.
 5. Security tests: malformed request framing, oversized headers/body, duplicate headers, path traversal, host-header injection, connection exhaustion, and process shutdown.
@@ -39,3 +39,10 @@ Provide coherent, fabricated protocol responses to clients interacting with MIRA
 - Strict input bounds and unambiguous request framing.
 - Identity derived only from the decoy profile, not from protected-service inventory or untrusted request headers.
 - Tests pass on supported Python versions before adding a socket listener.
+
+
+## Telemetry model
+
+The event model lives in `src/mirage/telemetry/events.py`. A transport adapter is responsible for supplying peer address metadata; the model does not attempt to infer endpoint identity or inspect the remote client device. Sequence numbers define event order within one session; wall-clock timestamps are UTC observations and are not used as the sole ordering guarantee.
+
+The default collection policy deliberately omits User-Agent and does not model request bodies or credential-bearing headers. The request target is reduced to its path before an event is created, so query parameters are not retained. This is a structured in-memory event model only: durable storage, tamper-evident chaining, retention, and export belong to M3.
