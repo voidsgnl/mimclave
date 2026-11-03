@@ -40,3 +40,7 @@ All notable project changes are documented here.
 ### M3 — In progress
 - Specified and implemented an append-only JSONL evidence store with a SHA-256 hash chain, synchronous fsync, file locking, restrictive permissions, complete-chain verification, and rejection of tampered or incomplete records.
 - Added tests for concurrent appenders, tampering, incomplete records, duplicate JSON keys, symlinks, hard links, unsafe permissions, and HTTP transport integration. CI run #116 passed 73 tests and Ruff on Python 3.12, 3.13, and 3.14.
+
+
+### M3 — Idempotent append
+- Evidence append now uses `event_id` as an idempotency key: identical retries return the original receipt without duplicating records; reusing an ID with a different payload raises `EvidenceEventConflictError`. Existing logs containing duplicate event IDs are rejected.
