@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** Design proposal. Nothing in this document is implemented yet. It extends `docs/evidence-storage.md` and does not change the behaviour of the current single-file `JsonlEvidenceStore`.
+**Status:** Design with recorded decisions (2026-11-04). Nothing in this document is implemented yet. It extends `docs/evidence-storage.md` and does not change the behaviour of the current single-file `JsonlEvidenceStore`.
 
 ## Problem
 
@@ -79,9 +79,10 @@ All operations lock `manifest.jsonl` (exclusive for append, rotation, retirement
 Under the exclusive manifest lock, append:
 1. Verifies the manifest chain and its consistency with the directory listing.
 2. Verifies the **active segment** from its manifest start point and checks idempotency against the retained event index.
-3. Writes the record, calls `fsync`, and returns the receipt.
+3. By default (`verify_sealed_on_append=True`) also re-verifies every retained sealed segment against its recorded `file_size` and `file_sha256` and its chain links. This preserves today's guarantee that every append follows a full verification of retained evidence.
+4. Writes the record, calls `fsync`, and returns the receipt.
 
-Sealed segments are immutable and are not re-read on every append. Their integrity is covered by `file_sha256` in the manifest and by an explicit `verify_all()` operation that walks every retained segment and every cross-segment link. This turns per-append cost from O(total log) into O(active segment); the trade-off is that tampering with a sealed segment is detected by `verify_all()`/export/checkpoint verification rather than on the next append. Whether that trade-off is acceptable is an open question below; the initial implementation may keep full-range verification on append until the benchmark justifies the change.
+Sealed segments are immutable and are `0400`. Setting `verify_sealed_on_append=False` turns per-append cost from O(retained log) into O(active segment); sealed segments are then covered by `file_sha256` in the manifest, by an explicit `verify_all()` operation that walks every retained segment and every cross-segment link, and by export and checkpoint verification. Tampering with a sealed segment is then detected by those operations rather than on the next append. This switch is an explicit operator decision (see Decisions), never a silent default.
 
 ## Rotation
 
@@ -97,7 +98,7 @@ Every sealed segment boundary is therefore anchored externally at the moment it 
 
 **Failure policy.** A rotation failure (for example an anchor outage) must not silently stop evidence collection, but it must not allow unbounded growth either. Two limits apply:
 - Soft limit: attempt rotation; on failure keep appending to the current segment and report the failure to the operator.
-- Hard limit (`hard_max_segment_bytes`, a multiple of the soft limit): append fails closed with an explicit storage error. Because the transport sends no decoy response when its event sink fails, an extended anchor outage eventually stops the decoy from answering rather than losing evidence. This is deliberate and must be documented for operators.
+- Hard limit (`hard_max_segment_bytes`, which must be greater than the soft limit): append fails closed with an explicit storage error. Because the transport sends no decoy response when its event sink fails, an extended anchor outage eventually stops the decoy from answering rather than losing evidence. This is deliberate and must be documented for operators.
 
 **Crash recovery.** On open, reconcile manifest and directory:
 - `segment_sealed` with no successor `segment_opened`: create the next segment (idempotent) and write `segment_opened`.
@@ -148,11 +149,14 @@ An existing single-file log is adopted by an explicit operator command that veri
 - Retirement refuses when the segment is not oldest, not sealed, not exported and re-verified, or not covered by a verified checkpoint, and records `approval_id`.
 - Retained range verifies after the oldest segment is retired; checkpoint verification works across a retired boundary.
 - Concurrent appenders across a rotation boundary still serialize into one valid chain.
+- `verify_sealed_on_append` is tested in both settings, including detection of a tampered sealed segment on append when it is enabled.
 - `docs/evidence-storage.md`, `ROADMAP.md`, and `CHANGELOG.md` are updated, and CI passes on Python 3.12–3.14.
 
-## Open questions
+## Decisions (2026-11-04)
 
-1. **Append verification scope.** Verify only the active segment on append (fast, relies on `file_sha256` and `verify_all()` for sealed segments), or keep verifying the whole retained range until target-hardware benchmarks justify the change?
-2. **Anchor history.** The anchor stores only the latest checkpoint. Should the checkpoint service contract be extended to keep an append-only history so retired-prefix assurance does not depend on locally preserved exports alone?
-3. **Limits.** Default values for `max_segment_bytes`, `max_segment_records`, and the hard-limit multiple should come from the benchmark results recorded on representative Linux storage.
-4. **Event ID uniqueness across retired segments.** Idempotency checks cover only retained segments. Is that acceptable, or should the manifest carry a bounded structure (for example per-segment event-ID range or Bloom-style summary) to detect reuse?
+These resolve the questions raised in the first draft. They apply to the first implementation and should be revisited once target-hardware benchmark results exist.
+
+1. **Append verification scope.** Append always verifies the manifest chain and the active segment. Sealed segments are also verified on every append by default (`verify_sealed_on_append=True`), which preserves the current guarantee. Disabling it is an explicit configuration choice, to be made only after `scripts/benchmark_evidence_store.py` results on representative Linux storage show the cost matters. Retention also bounds how large the retained range can grow.
+2. **Anchor history.** Out of scope for the first implementation; the `CheckpointAnchor` contract and `HttpsCheckpointAnchor` stay unchanged. The compensating controls are the retirement preconditions (verified export with a recorded `export_sha256`, checkpoint verified against the full chain before deletion) and the operator duty to archive the manifest and exports off-host. A service-side append-only checkpoint history is recorded as future work for the checkpoint service contract.
+3. **Limits.** No size defaults are hard-coded. `max_segment_bytes` (and optionally `max_segment_records`) and `hard_max_segment_bytes` are required explicit configuration, and construction fails unless the hard limit is greater than the soft limit. Operational defaults are chosen only after benchmark measurements; tests use small values.
+4. **Event-ID reuse across retired segments.** Accepted limitation for the first implementation: idempotency and conflict detection cover retained segments only. This assumes event IDs are generated uniquely per event; confirm that in `mirage.telemetry.events` before implementing, and revisit (for example with a per-segment ID summary in the manifest) if IDs ever become caller-supplied.
