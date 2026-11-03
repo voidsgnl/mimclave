@@ -82,3 +82,30 @@ No automatic deletion, pruning, rotation, or retention scheduler is implemented.
 ## Throughput measurement
 
 Run `python scripts/benchmark_evidence_store.py --events 100` from the repository root to measure synchronous append throughput and full-chain verification on the target filesystem and hardware. The benchmark uses a temporary directory and synthetic metadata-only events; it does not touch production evidence. CI run #151 passed a 10-event smoke test on Python 3.12–3.14 to ensure the benchmark remains executable, but CI timing is not a performance baseline. Record measurements on representative Linux storage before deciding whether a bounded asynchronous queue or indexed/checkpointed verification is justified.
+
+
+## HTTPS checkpoint client and remote service contract
+
+`mirage.telemetry.https_anchor.HttpsCheckpointAnchor` is the production-facing client adapter for an independently hosted checkpoint service. It accepts an exact HTTPS resource URL and a bearer token. It uses the platform's default certificate-verifying TLS context, refuses redirects, applies a request timeout, bounds response bodies to 4096 bytes, and never places credentials in the URL. The token should be loaded from a secret manager or protected environment at deployment; do not commit it, put it in TOML checked into source control, or log request headers.
+
+The remote service must implement this conditional resource contract:
+
+- `GET <resource>`: return HTTP 200 with JSON `{"generation":N,"record_count":N,"head_hash":"<64 lowercase hex chars>"}` and a **strong** ETag. Return 404 only when no checkpoint exists.
+- `PUT <resource>`: accept the same JSON shape. For initial creation require `If-None-Match: *`; for updates require `If-Match: <previous strong ETag>`. Return HTTP 200 or 201 with the committed checkpoint JSON and a new strong ETag.
+- Return HTTP 409 or 412 when the conditional precondition fails. The client maps these to `CheckpointConflictError`.
+- The service must atomically enforce the ETag precondition, require generation 1 for initial creation and exactly previous generation + 1 for updates, durably commit before replying, and reject rollback or arbitrary replacement. A database transaction with a unique singleton resource and compare-and-swap update is a suitable server-side implementation.
+- All other redirects, unexpected statuses, malformed responses, missing/weak ETags, oversized bodies, TLS failures, and network errors fail as `CheckpointError`; certificate verification is not disabled.
+
+Example construction (the application must obtain the secret from its deployment secret manager):
+
+```python
+from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
+
+anchor = HttpsCheckpointAnchor(
+    "https://evidence-anchor.example.net/v1/mirage/checkpoint",
+    bearer_token=load_secret("MIRAGE_CHECKPOINT_TOKEN"),
+)
+store.publish_checkpoint(anchor)
+```
+
+The repository now includes the HTTPS client adapter, not a hosted checkpoint server. It becomes an independent anchor only when deployed against a separately administered service whose storage, credentials, backups, and operator access are outside the evidence host's trust boundary. Do not point it at a service hosted on the same machine and describe that as independent protection. A timeout after a remote commit is ambiguous; retrying `publish_checkpoint` is safe because it reads the committed checkpoint and returns it when the local head already matches.
