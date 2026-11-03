@@ -41,7 +41,9 @@ class HttpsCheckpointAnchor:
         timeout: float = 5.0,
     ) -> None:
         if any(ord(char) < 0x21 or ord(char) == 0x7F for char in endpoint):
-            raise ValueError("checkpoint endpoint must not contain whitespace or control characters")
+            raise ValueError(
+                "checkpoint endpoint must not contain whitespace or control characters"
+            )
         parsed = urlsplit(endpoint)
         try:
             port = parsed.port
@@ -65,7 +67,9 @@ class HttpsCheckpointAnchor:
             or bearer_token.strip() != bearer_token
             or any(ord(char) < 0x21 or ord(char) == 0x7F for char in bearer_token)
         ):
-            raise ValueError("bearer token must be non-empty and contain no whitespace or control characters")
+            raise ValueError(
+                "bearer token must be non-empty and contain no whitespace or control characters"
+            )
         if timeout <= 0:
             raise ValueError("timeout must be positive")
 
