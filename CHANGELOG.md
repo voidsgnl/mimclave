@@ -44,3 +44,7 @@ All notable project changes are documented here.
 
 ### M3 — Idempotent append
 - Evidence append now uses `event_id` as an idempotency key: identical retries return the original receipt without duplicating records; reusing an ID with a different payload raises `EvidenceEventConflictError`. Existing logs containing duplicate event IDs are rejected.
+
+
+### M3 — External checkpoint contract
+- Added an external checkpoint interface with monotonic generations, record counts, SHA-256 head commitments, and atomic compare-and-set publication. The store can publish and verify checkpoints and detects truncated or replaced log prefixes. Only the interface is implemented; a production remote anchor adapter remains future work.
