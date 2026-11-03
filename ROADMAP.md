@@ -19,11 +19,11 @@
 - MIRAGE observes interactions with its own decoys; it cannot inspect arbitrary commands/files on an attacker's device.
 - Defensive use only on owned/authorized systems. No retaliation. Attribution is probabilistic, not identity proof.
 
-## Status — 2026-11-03
+## Status — 2026-11-04
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client CI-verified (93 tests on Python 3.12–3.14). No hosted anchor service or retention deletion yet.**
+**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client CI-verified (93 tests on Python 3.12–3.14). No hosted anchor service or retention deletion yet. Segmented rotation/retention design drafted in `docs/evidence-segments.md` (proposal; not implemented).**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -74,6 +74,7 @@
 - GitHub Actions run #27, commit `9721aa5`: **success** on Python 3.12, 3.13, and 3.14. 25 tests passed; Ruff passed in all matrix jobs (M1).
 - GitHub Actions run #45, commit `b69704b`: **success** on Python 3.12, 3.13, and 3.14. 41 tests passed; Ruff passed in all matrix jobs (M2 HTTP engine).
 - No local test run has been performed from a local checkout in this session.
+- Documentation-only commits `bcd74ee` (roadmap formatting fix) and `0e9dca6` (segment design spec) changed no code; their CI results have not been checked.
 
 ## Milestones
 
@@ -101,6 +102,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 ## Key files
 - src/mirage/telemetry/store.py — append-only JSONL evidence store with SHA-256 chain verification and fsync.
 - docs/evidence-storage.md — evidence envelope, durability, locking, permissions, and integrity limitations.
+- docs/evidence-segments.md — segmented rotation/retention design (proposal; not implemented).
 - ROADMAP.md — canonical roadmap and new-chat handoff.
 - src/mirage/config/models.py — immutable typed models.
 - src/mirage/config/validation.py — port/protocol compatibility rules.
@@ -133,12 +135,14 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
 - [x] Implement an HTTPS external-anchor client using verified TLS, bearer authentication, bounded responses, redirect refusal, and ETag conditional writes.
 - [x] CI run #169 passed 93 tests and Ruff on Python 3.12, 3.13, and 3.14; the benchmark smoke test also passed.
+- [x] Draft the segmented rotation/retention design (one continuous chain, hash-chained segment manifest, checkpoint-anchored rotation, operator-approved retirement) in `docs/evidence-segments.md`; design only, open questions listed there.
+- [ ] Resolve the open questions in `docs/evidence-segments.md`, then implement the manifest, rotation, crash recovery, and operator-approved retirement with tampering and crash-injection tests.
 - [ ] Deploy or integrate an independently administered checkpoint service implementing the documented durable compare-and-set API; client code alone does not create an independent anchor.
 
 ## Resume here — exact next steps
 1. Deploy or integrate an independently administered checkpoint service implementing the HTTPS API in `docs/evidence-storage.md`; configure its secret outside source control and verify its durability/backup/authorization controls.
-2. Define segmented log rotation/retention with checkpoint handoff. Current exports preserve the complete genesis-linked chain; automatic pruning/deletion is intentionally absent.
-3. Run `python scripts/benchmark_evidence_store.py --events 1000` (and larger representative sizes) on target Linux storage; record results before considering indexing or bounded async batching.
+2. Segmented rotation/retention: the design is in `docs/evidence-segments.md`. Resolve its open questions (append verification scope, anchor history, default limits, event-ID reuse across retired segments), then implement the segment manifest, rotation, crash recovery, and operator-approved retirement in `src/mirage/telemetry/` with tampering and crash-injection tests. Current exports preserve the complete genesis-linked chain; automatic pruning/deletion remains intentionally absent.
+3. Run `python scripts/benchmark_evidence_store.py --events 1000` (and larger representative sizes) on target Linux storage; record results before considering indexing or bounded async batching. The results also inform the default segment limits in step 2.
 4. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
 5. Update this roadmap and CHANGELOG after each meaningful change.
 
@@ -184,3 +188,6 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Added `HttpsCheckpointAnchor`: verified TLS, bearer authentication, no redirects, bounded response size, strong ETag validation, conditional create/update, and conflict handling. A separate hosted service is still required. CI verification pending.
 
 - 2026-11-03: HTTPS checkpoint client passed CI run #169: 93 tests, Ruff, and benchmark smoke test on Python 3.12–3.14. The client enforces HTTPS, default certificate validation, no redirects, bounded JSON responses, bearer-token hygiene, strong ETags, conditional create/update, and conflict handling. A separately hosted service remains a deployment dependency.
+
+- 2026-11-04: Fixed escaped newline artifacts in this handoff log and renamed the stale "M2 started" heading to "M2 delivered" (commit `bcd74ee`, documentation only).
+- 2026-11-04: Added `docs/evidence-segments.md`, a design proposal for segmented evidence rotation and operator-approved retention (commit `0e9dca6`, documentation only). Next task: resolve its open questions, then implement the manifest, rotation, crash recovery, and retirement with tests.

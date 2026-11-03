@@ -60,3 +60,10 @@ All notable project changes are documented here.
 
 ### M3 — HTTPS checkpoint client
 - Added `HttpsCheckpointAnchor`, an HTTPS client adapter using verified TLS, bearer authentication, bounded responses, redirect refusal, strong ETags, and conditional create/update semantics. The external service must implement the documented atomic durable compare-and-set API; no hosted anchor server is included. CI run #169 passed 93 tests and Ruff on Python 3.12–3.14.
+
+
+### M3 — Segmented evidence design (proposal)
+- Added `docs/evidence-segments.md`, a design proposal for segmented log rotation and operator-approved retention: one continuous hash chain across segments, a hash-chained segment manifest, checkpoint-anchored rotation boundaries, fail-closed hard size limit, crash-recovery rules, and retirement preconditions (verified export, verified checkpoint, approval ID). The design is not implemented; no code, behaviour, or tests changed, and the existing single-file store is unaffected. Open questions are listed in the document.
+
+### Fixed
+- Corrected escaped newline artifacts in the `ROADMAP.md` handoff log and renamed the stale "M2 started" heading to "M2 delivered".
