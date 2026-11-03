@@ -54,18 +54,25 @@ class HttpRequest:
             if not line or line[0] in " \t" or ":" not in line:
                 raise RequestError("malformed HTTP header")
             name, value = line.split(":", 1)
-            key = name.strip().lower()
-            if not key or not key.replace("-", "").isalnum():
+            if name != name.strip():
+                raise RequestError("whitespace is not permitted in HTTP header names")
+            key = name.lower()
+            token_chars = "!#$%&'*+-.^_`|~"
+            if not key or not all(char.isascii() and (char.isalnum() or char in token_chars) for char in key):
                 raise RequestError("invalid HTTP header name")
             if key in headers:
                 raise RequestError(f"duplicate HTTP header: {key}")
             headers[key] = value.strip()
 
+        if version == "HTTP/1.1" and "host" not in headers:
+            raise RequestError("HTTP/1.1 requests must include Host")
         if "transfer-encoding" in headers:
             raise RequestError("transfer-encoded request bodies are not supported")
         content_length = headers.get("content-length", "0")
         if not content_length.isdigit():
             raise RequestError("invalid Content-Length")
+        if int(content_length) > MAX_BODY_BYTES:
+            raise RequestError("request body exceeds maximum size")
         if int(content_length) != len(body):
             raise RequestError("Content-Length does not match request body")
         if method not in {"GET", "HEAD"}:
@@ -98,6 +105,8 @@ class HttpDecoy:
     def __init__(self, profile: DecoyProfile) -> None:
         if profile.protocol != Protocol.HTTP:
             raise ValueError("HttpDecoy requires a profile with protocol='http'")
+        if not profile.service_name.isascii() or not profile.service_version.isascii():
+            raise ValueError("HTTP Server identity must contain ASCII characters only")
         self.profile = profile
 
     def handle(self, raw_request: bytes) -> bytes:
