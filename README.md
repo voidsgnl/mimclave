@@ -35,7 +35,7 @@ See [Architecture](docs/architecture.md), [Requirements](docs/requirements.md), 
 
 ## Development
 
-Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest`. The initial implementation milestone focuses on read-only service discovery and configuration validation. Network interception and sandbox execution will be introduced only after their threat model and safety tests are established.
+Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest`. The initial implementation milestone focuses on read-only service discovery and configuration validation. Run `python -m pip install -e '.[dev]'`, then `mirage discover` (or `python -m mirage discover`) to list locally visible TCP listeners and bound UDP sockets as JSON. UDP entries are bound-socket observations, not proof that an application-level service is responsive. Network interception and sandbox execution will be introduced only after their threat model and safety tests are established.
 
 ## Safety
 
