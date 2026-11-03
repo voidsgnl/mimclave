@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client implemented; CI verification pending. No hosted anchor service or retention deletion yet.**
+**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client CI-verified (93 tests on Python 3.12–3.14). No hosted anchor service or retention deletion yet.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -63,6 +63,7 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #169, commit `23287bb`: **success** on Python 3.12, 3.13, and 3.14. 93 tests, Ruff, and the 10-event evidence benchmark smoke test passed in all matrix jobs (HTTPS checkpoint client).
 - GitHub Actions run #151, commit `b58be40`: **success** on Python 3.12, 3.13, and 3.14. 82 tests, Ruff, and the 10-event evidence benchmark smoke test passed in all matrix jobs.
 - GitHub Actions run #142, commit `c35b905`: **success** on Python 3.12, 3.13, and 3.14. 82 tests passed; Ruff passed in all matrix jobs (verified evidence export and checkpoint validation).
 - GitHub Actions run #135, commit `eb0414a`: **success** on Python 3.12, 3.13, and 3.14. 79 tests passed; Ruff passed in all matrix jobs (external checkpoint interface, anchored-prefix verification, rollback/replacement detection).
@@ -131,6 +132,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] CI run #142 passed 82 tests and Ruff on Python 3.12, 3.13, and 3.14.
 - [x] Define an external checkpoint contract with monotonic generations, atomic compare-and-set, and local-prefix verification; test rollback and replacement detection.
 - [x] Implement an HTTPS external-anchor client using verified TLS, bearer authentication, bounded responses, redirect refusal, and ETag conditional writes.
+- [x] CI run #169 passed 93 tests and Ruff on Python 3.12, 3.13, and 3.14; the benchmark smoke test also passed.
 - [ ] Deploy or integrate an independently administered checkpoint service implementing the documented durable compare-and-set API; client code alone does not create an independent anchor.
 
 ## Resume here — exact next steps
@@ -177,3 +179,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Corrected the handoff to mark M2 complete and clarify remaining M3 work: production external anchor adapter, segmented retention/rotation, and target-hardware performance measurements. The benchmark CI smoke test is verified but is not a performance baseline.
 
 - 2026-11-03: Added `HttpsCheckpointAnchor`: verified TLS, bearer authentication, no redirects, bounded response size, strong ETag validation, conditional create/update, and conflict handling. A separate hosted service is still required. CI verification pending.
+
+- 2026-11-03: HTTPS checkpoint client passed CI run #169: 93 tests, Ruff, and benchmark smoke test on Python 3.12–3.14. The client enforces HTTPS, default certificate validation, no redirects, bounded JSON responses, bearer-token hygiene, strong ETags, conditional create/update, and conflict handling. A separately hosted service remains a deployment dependency.
