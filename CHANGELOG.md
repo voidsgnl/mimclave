@@ -51,4 +51,4 @@ All notable project changes are documented here.
 
 
 ### M3 — Verified export
-- Added a verified JSONL export operation that holds a shared source lock, verifies the complete chain and optional external checkpoint, refuses destination overwrite, writes with `0600` permissions, and fsyncs the file and destination directory. No automatic retention or deletion is performed.
+- Added a verified JSONL export operation that holds a shared source lock, verifies the complete chain and optional external checkpoint, refuses destination overwrite, writes with `0600` permissions, and fsyncs the file and destination directory. No automatic retention or deletion is performed. CI run #142 passed 82 tests and Ruff on Python 3.12–3.14.
