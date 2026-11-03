@@ -28,8 +28,8 @@ class FakeResponse:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, size: int = -1) -> bytes:
+        return self._body if size < 0 else self._body[:size]
 
 
 class FakeOpener:
@@ -180,4 +180,21 @@ def test_https_anchor_rejects_redirects(monkeypatch) -> None:
     )
 
     with pytest.raises(CheckpointError, match="redirects are not allowed"):
+        anchor.read()
+
+
+
+def test_https_anchor_rejects_oversized_service_response(monkeypatch) -> None:
+    opener = FakeOpener(
+        [FakeResponse(200, b"x" * 4097, {"ETag": '"v1"'})]
+    )
+    monkeypatch.setattr(
+        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        lambda *handlers: opener,
+    )
+    anchor = HttpsCheckpointAnchor(
+        "https://anchor.example/checkpoint", "secret-token"
+    )
+
+    with pytest.raises(CheckpointError, match="exceeds 4096 bytes"):
         anchor.read()
