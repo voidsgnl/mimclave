@@ -44,6 +44,15 @@ class StoreVerification:
     head_hash: str
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
 def _canonical_json(value: dict[str, Any]) -> bytes:
     try:
         return json.dumps(
@@ -185,8 +194,8 @@ class JsonlEvidenceStore:
                     f"evidence record {line_number} exceeds the size limit"
                 )
             try:
-                envelope = json.loads(line)
-            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                envelope = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
                 raise EvidenceIntegrityError(
                     f"evidence record {line_number} is not valid JSON"
                 ) from exc
