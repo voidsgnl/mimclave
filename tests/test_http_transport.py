@@ -126,3 +126,48 @@ def test_shutdown_closes_active_clients_and_is_idempotent() -> None:
         await writer.wait_closed()
 
     asyncio.run(scenario())
+
+
+
+def test_oversized_header_is_rejected_without_event() -> None:
+    async def scenario() -> None:
+        events: list[SessionEvent] = []
+        server = HttpDecoyServer(make_decoy(), event_sink=events.append)
+        await server.start()
+        try:
+            reader, writer = await asyncio.open_connection(*server.address)
+            writer.write(
+                b"GET / HTTP/1.1\\r\\nHost: "
+                + b"a" * 17000
+                + b"\\r\\n\\r\\n"
+            )
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(), timeout=1.0)
+            assert response.startswith(b"HTTP/1.1 400 Bad Request")
+            assert events == []
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            await server.close()
+
+    asyncio.run(scenario())
+
+
+def test_telemetry_sink_failure_suppresses_decoy_response() -> None:
+    async def scenario() -> None:
+        def broken_sink(event: SessionEvent) -> None:
+            raise RuntimeError("evidence store unavailable")
+
+        server = HttpDecoyServer(make_decoy(), event_sink=broken_sink)
+        await server.start()
+        try:
+            reader, writer = await asyncio.open_connection(*server.address)
+            writer.write(b"GET / HTTP/1.1\\r\\nHost: local.test\\r\\n\\r\\n")
+            await writer.drain()
+            assert await asyncio.wait_for(reader.read(), timeout=1.0) == b""
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            await server.close()
+
+    asyncio.run(scenario())
