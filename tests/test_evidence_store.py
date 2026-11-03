@@ -243,3 +243,51 @@ def test_external_checkpoint_compare_and_set_conflict_is_propagated(tmp_path) ->
 
     with pytest.raises(CheckpointConflictError, match="concurrent publisher"):
         store.publish_checkpoint(ConflictingAnchor())
+
+
+
+def test_verified_export_preserves_chain_and_private_permissions(tmp_path) -> None:
+    source = tmp_path / "events.jsonl"
+    destination = tmp_path / "export.jsonl"
+    store = JsonlEvidenceStore(source)
+    store.append(make_event(1))
+    store.append(make_event(2))
+    anchor = MemoryCheckpointAnchor()
+    checkpoint = store.publish_checkpoint(anchor)
+
+    result = store.export_verified(destination, anchor=anchor)
+
+    assert result.record_count == 2
+    assert result.head_hash == checkpoint.head_hash
+    assert destination.read_bytes() == source.read_bytes()
+    assert stat.S_IMODE(destination.stat().st_mode) == 0o600
+    assert JsonlEvidenceStore(destination).verify() == result
+
+
+def test_verified_export_refuses_to_overwrite_existing_file(tmp_path) -> None:
+    source = tmp_path / "events.jsonl"
+    destination = tmp_path / "export.jsonl"
+    store = JsonlEvidenceStore(source)
+    store.append(make_event())
+    destination.write_bytes(b"preserve-existing")
+
+    with pytest.raises(EvidenceStoreError, match="cannot create evidence export"):
+        store.export_verified(destination)
+
+    assert destination.read_bytes() == b"preserve-existing"
+
+
+def test_verified_export_requires_matching_external_checkpoint(tmp_path) -> None:
+    source = tmp_path / "events.jsonl"
+    destination = tmp_path / "export.jsonl"
+    store = JsonlEvidenceStore(source)
+    store.append(make_event(1))
+    anchor = MemoryCheckpointAnchor()
+    store.publish_checkpoint(anchor)
+
+    source.write_bytes(JsonlEvidenceStore(tmp_path / "different.jsonl").path.read_bytes()
+                        if (tmp_path / "different.jsonl").exists() else b"")
+
+    with pytest.raises(CheckpointError):
+        store.export_verified(destination, anchor=anchor)
+    assert not destination.exists()
