@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive platform designed to place controlled deceptio
 
 ## Project status
 
-Architecture and foundation stage. No production traffic interception or sandbox execution is implemented yet. Do not deploy MIRAGE in front of production services.
+M1 foundation is in progress. The repository now contains typed configuration models, protocol/port compatibility validation, and read-only Linux listener discovery. No production traffic interception or sandbox execution is implemented. Do not deploy MIRAGE in front of production services.
 
 ## Core principles
 
@@ -35,7 +35,7 @@ See [Architecture](docs/architecture.md), [Requirements](docs/requirements.md), 
 
 ## Development
 
-The initial foundation targets Python 3.12+ and uses pyproject.toml for project metadata and tooling. The first implementation milestone focuses on read-only service discovery and configuration validation. Network interception and sandbox execution will be introduced only after their threat model and safety tests are established.
+Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest`. The initial implementation milestone focuses on read-only service discovery and configuration validation. Network interception and sandbox execution will be introduced only after their threat model and safety tests are established.
 
 ## Safety
 
