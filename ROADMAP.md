@@ -63,6 +63,7 @@
 - [x] Test that incomplete TLS handshakes close at the configured timeout without producing HTTP events (run #99; 63 tests and Ruff passed across Python 3.12–3.14).
 
 ## CI verification record
+- GitHub Actions run #151, commit `b58be40`: **success** on Python 3.12, 3.13, and 3.14. 82 tests, Ruff, and the 10-event evidence benchmark smoke test passed in all matrix jobs.
 - GitHub Actions run #142, commit `c35b905`: **success** on Python 3.12, 3.13, and 3.14. 82 tests passed; Ruff passed in all matrix jobs (verified evidence export and checkpoint validation).
 - GitHub Actions run #135, commit `eb0414a`: **success** on Python 3.12, 3.13, and 3.14. 79 tests passed; Ruff passed in all matrix jobs (external checkpoint interface, anchored-prefix verification, rollback/replacement detection).
 - GitHub Actions run #123, commit `85b6fe0`: **success** on Python 3.12, 3.13, and 3.14. 75 tests passed; Ruff passed in all matrix jobs (idempotent evidence append and conflict handling).
@@ -169,3 +170,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Verified evidence export passed CI run #142: 82 tests and Ruff on Python 3.12–3.14. Export verifies the full chain and optional checkpoint, refuses overwrite, writes mode 0600, fsyncs file and directory, and leaves source unchanged. Automatic retention deletion remains intentionally unimplemented.
 
 - 2026-11-03: Added `scripts/benchmark_evidence_store.py` and a 10-event CI smoke test. The script reports append and full-verification throughput using a temporary file; target-hardware measurements remain pending. CI verification pending.
+
+- 2026-11-03: Benchmark smoke test passed in CI run #151 on Python 3.12–3.14. The short CI sample is only an execution check, not a performance baseline; target Linux measurements remain pending.
