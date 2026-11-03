@@ -121,7 +121,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [ ] Design external head-hash anchoring and safe export/retention before adding automatic deletion or claiming whole-file tamper detection.
 
 ## Resume here — exact next steps
-1. Review ambiguous-commit/retry behaviour and duplicate event IDs; define safe idempotency semantics.
+1. [x] Define safe idempotency semantics: stable event ID retries return the original receipt, conflicting payload reuse is rejected, and duplicate IDs in a log invalidate the log.
 2. Add externally anchored checkpoints so whole-file rewrite or truncation can be detected; a local unanchored hash chain alone cannot provide this guarantee.
 3. Define evidence export and retention semantics that preserve chain continuity and checkpoint provenance.
 4. Measure append/verification throughput and design a bounded queue/backpressure strategy only if synchronous fsync is insufficient.
@@ -144,3 +144,5 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-03: Fixed duplicate-JSON-key verification handling and corrected CRLF framing in the durable-store transport integration test. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14; initial M3 store is CI-verified.
 
 - 2026-11-03: M3 initial JSONL evidence store passed CI run #116: 73 tests and Ruff on Python 3.12–3.14. Store is append-only, hash-chained, fsync-before-ack, permission-restricted, locked across appenders, and integrated with the fail-closed local HTTP event sink.
+
+- 2026-11-03: Implemented idempotent append by stable event ID. Identical retries return the original receipt without a duplicate record; conflicting payload reuse is rejected; duplicate IDs in an existing log fail verification. Added regression tests; CI verification pending.
