@@ -753,3 +753,72 @@ def test_migration_recovers_complete_destination_if_parent_fsync_fails(
         anchor=anchor,
     )
     assert reopened.verify_all().record_count == 1
+
+
+
+def test_initialization_recovers_after_manifest_fsync_before_segment_creation(
+    tmp_path, monkeypatch
+):
+    directory = tmp_path / "evidence"
+    original_fsync = os.fsync
+
+    def interrupt_manifest_fsync(fd):
+        target = os.readlink(f"/proc/self/fd/{fd}")
+        original_fsync(fd)
+        if target.endswith("/manifest.jsonl"):
+            raise RuntimeError("simulated process crash after manifest fsync")
+
+    monkeypatch.setattr(
+        "mirage.telemetry.segmented.os.fsync", interrupt_manifest_fsync
+    )
+    with pytest.raises(RuntimeError, match="manifest fsync"):
+        SegmentedEvidenceStore(
+            directory,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=MemoryAnchor(),
+        )
+
+    monkeypatch.undo()
+    reopened = SegmentedEvidenceStore(
+        directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=MemoryAnchor(),
+    )
+    assert (directory / "segment-00000001.jsonl").exists()
+    assert reopened.verify_all().record_count == 0
+
+
+def test_rotation_recovers_after_successor_fsync_before_directory_fsync(
+    tmp_path, monkeypatch
+):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    original_sync = SegmentedEvidenceStore._fsync_directory
+    calls = 0
+
+    def interrupt_second_directory_sync(self):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("simulated process crash after successor fsync")
+        return original_sync(self)
+
+    monkeypatch.setattr(
+        SegmentedEvidenceStore, "_fsync_directory", interrupt_second_directory_sync
+    )
+    with pytest.raises(RuntimeError, match="successor fsync"):
+        store.rotate()
+
+    monkeypatch.undo()
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    successor = store.directory / "segment-00000002.jsonl"
+    assert successor.exists()
+    assert successor.stat().st_size == 0
+    assert reopened.verify_all().record_count == 1
