@@ -168,15 +168,21 @@ class SegmentedEvidenceStore:
             previous_hash = GENESIS_HASH
             next_number = 1
             total = 0
+            seen_event_ids: set[str] = set()
             for segment in segments:
                 if segment.retired:
                     previous_hash = segment.last_hash
                     next_number = segment.last_record_number + 1
                     continue
                 data = self._read_segment(self.directory / segment.file_name, segment)
-                result, _ = self._scan_segment(
+                result, event_index = self._scan_segment(
                     data, segment.first_record_number - 1, segment.start_previous_hash
                 )
+                if seen_event_ids.intersection(event_index):
+                    raise EvidenceIntegrityError(
+                        "duplicate event ID across retained evidence segments"
+                    )
+                seen_event_ids.update(event_index)
                 expected_count = (
                     segment.last_record_number - segment.first_record_number + 1
                 )
