@@ -629,19 +629,19 @@ def test_initialization_recovers_after_segment_fsync_before_directory_fsync(
     assert reopened.verify_all().record_count == 0
 
 
-def test_append_retry_is_idempotent_after_write_before_fsync_failure(
+def test_append_retry_is_idempotent_after_fsync_before_receipt(
     tmp_path, monkeypatch
 ):
     store, anchor = make_store(tmp_path, soft=3000, hard=8192)
     event = make_event(1)
-    original_write = store._write_all
+    original_fsync = os.fsync
 
-    def interrupt_after_complete_write(fd, data):
-        original_write(fd, data)
-        raise RuntimeError("simulated process crash before fsync")
+    def interrupt_after_fsync(fd):
+        original_fsync(fd)
+        raise RuntimeError("simulated process crash after fsync")
 
-    monkeypatch.setattr(store, "_write_all", interrupt_after_complete_write)
-    with pytest.raises(RuntimeError, match="before fsync"):
+    monkeypatch.setattr("mirage.telemetry.segmented.os.fsync", interrupt_after_fsync)
+    with pytest.raises(RuntimeError, match="after fsync"):
         store.append(event)
 
     monkeypatch.undo()
