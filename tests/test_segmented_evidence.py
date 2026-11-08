@@ -3,7 +3,11 @@ import shutil
 
 import pytest
 
-from mirage.telemetry.checkpoints import CheckpointConflictError, CheckpointError
+from mirage.telemetry.checkpoints import (
+    CheckpointConflictError,
+    CheckpointError,
+    EvidenceCheckpoint,
+)
 from mirage.telemetry.events import SessionEventFactory
 from mirage.telemetry.segmented import SegmentedEvidenceStore
 from mirage.telemetry.store import EvidenceIntegrityError, EvidenceStoreError
@@ -133,3 +137,28 @@ def test_retirement_rejects_export_inside_evidence_directory(tmp_path):
 
     with pytest.raises(EvidenceStoreError, match="outside"):
         store.retire_oldest_segment(export, approval_id="approval")
+
+
+
+def test_external_checkpoint_mismatch_is_detected(tmp_path):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    anchor.checkpoint = EvidenceCheckpoint(
+        generation=anchor.checkpoint.generation,
+        record_count=anchor.checkpoint.record_count,
+        head_hash="f" * 64,
+    )
+
+    with pytest.raises(CheckpointError, match="external checkpoint"):
+        store.verify_all()
+
+
+def test_sealed_segments_require_an_external_checkpoint(tmp_path):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    anchor.checkpoint = None
+
+    with pytest.raises(CheckpointError, match="without an external checkpoint"):
+        store.verify_all()
