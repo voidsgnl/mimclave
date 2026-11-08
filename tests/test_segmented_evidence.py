@@ -223,3 +223,21 @@ def test_reopen_recovers_crash_after_seal_before_successor_open(tmp_path):
     )
     assert (store.directory / "segment-00000002.jsonl").exists()
     assert reopened.verify_all().record_count == 1
+
+
+
+def test_append_with_sealed_segment_verification_disabled(tmp_path):
+    anchor = MemoryAnchor()
+    store = SegmentedEvidenceStore(
+        tmp_path / "evidence",
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+        verify_sealed_on_append=False,
+    )
+    store.append(make_event(1))
+    store.rotate()
+    receipt = store.append(make_event(2))
+
+    assert receipt.record_number == 2
+    assert store.verify_all().record_count == 2
