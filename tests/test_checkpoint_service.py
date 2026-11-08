@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import stat
 import threading
 import urllib.error
@@ -286,3 +287,70 @@ def test_checkpoint_service_rejects_short_bearer_token(tmp_path):
             host="127.0.0.1",
             port=0,
         )
+
+
+
+def test_checkpoint_service_history_is_hash_chained_and_append_only(running_service):
+    url, database = running_service
+    first = EvidenceCheckpoint(1, 1, "a" * 64)
+    status, headers, _ = send_request(
+        url,
+        "PUT",
+        headers=auth_headers(
+            **{"If-None-Match": "*", "Content-Type": "application/json"}
+        ),
+        body=encode(first),
+    )
+    assert status == 200
+
+    second = EvidenceCheckpoint(2, 2, "b" * 64)
+    status, _, _ = send_request(
+        url,
+        "PUT",
+        headers=auth_headers(
+            **{"If-Match": headers["ETag"], "Content-Type": "application/json"}
+        ),
+        body=encode(second),
+    )
+    assert status == 200
+
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            """
+            SELECT generation, previous_history_hash, entry_hash
+            FROM checkpoint_history ORDER BY generation
+            """
+        ).fetchall()
+        assert [row[0] for row in rows] == [1, 2]
+        assert rows[0][1] == "0" * 64
+        assert rows[1][1] == rows[0][2]
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            connection.execute(
+                "UPDATE checkpoint_history SET head_hash = ? WHERE generation = 1",
+                ("f" * 64,),
+            )
+
+
+def test_checkpoint_service_detects_rewritten_history(running_service):
+    url, database = running_service
+    checkpoint = EvidenceCheckpoint(1, 1, "a" * 64)
+    status, _, _ = send_request(
+        url,
+        "PUT",
+        headers=auth_headers(
+            **{"If-None-Match": "*", "Content-Type": "application/json"}
+        ),
+        body=encode(checkpoint),
+    )
+    assert status == 200
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TRIGGER checkpoint_history_no_update")
+        connection.execute(
+            "UPDATE checkpoint_history SET entry_hash = ? WHERE generation = 1",
+            ("f" * 64,),
+        )
+
+    status, _, body = send_request(url, headers=auth_headers())
+    assert status == 503
+    assert json.loads(body)["error"] == "checkpoint storage unavailable"
