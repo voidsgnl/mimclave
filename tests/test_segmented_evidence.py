@@ -598,7 +598,6 @@ def test_initialization_recovers_after_segment_fsync_before_directory_fsync(
     tmp_path, monkeypatch
 ):
     directory = tmp_path / "evidence"
-    store = SegmentedEvidenceStore.__new__(SegmentedEvidenceStore)
     original_sync = SegmentedEvidenceStore._fsync_directory
     calls = 0
 
@@ -633,7 +632,7 @@ def test_initialization_recovers_after_segment_fsync_before_directory_fsync(
 def test_append_retry_is_idempotent_after_write_before_fsync_failure(
     tmp_path, monkeypatch
 ):
-    store, anchor = make_store(tmp_path, soft=4096)
+    store, anchor = make_store(tmp_path, soft=3000, hard=8192)
     event = make_event(1)
     original_write = store._write_all
 
@@ -648,7 +647,7 @@ def test_append_retry_is_idempotent_after_write_before_fsync_failure(
     monkeypatch.undo()
     reopened = SegmentedEvidenceStore(
         store.directory,
-        max_segment_bytes=4096,
+        max_segment_bytes=3000,
         hard_max_segment_bytes=8192,
         anchor=anchor,
     )
@@ -673,7 +672,7 @@ def test_partial_append_fails_closed_after_restart(tmp_path, monkeypatch):
     with pytest.raises(EvidenceIntegrityError, match="incomplete trailing record"):
         SegmentedEvidenceStore(
             store.directory,
-            max_segment_bytes=4096,
+            max_segment_bytes=3000,
             hard_max_segment_bytes=8192,
             anchor=anchor,
         )
