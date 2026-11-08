@@ -208,3 +208,12 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 
 - 2026-11-08: Added manifest integrity tests for edited entries and incomplete tails, directory reconciliation tests for missing sealed and unmanifested segment files, and a checkpoint-verification test after retiring the oldest segment while the latest checkpoint refers to a later retained boundary. GitHub Actions run #216 passed **116 tests and Ruff on Python 3.12, 3.13, and 3.14**.
+
+
+- 2026-11-09: Implemented non-destructive legacy JSONL migration. The migration verifies the full source chain, checks and advances the external checkpoint to the source head, copies the original record bytes unchanged into sealed segment 1, creates the active successor, verifies the staged store, and atomically publishes the destination. The source remains untouched. Added tests for byte-for-byte preservation, source retention, tampering, and checkpoint conflicts. GitHub Actions run #227 passed **119 tests, the evidence benchmark smoke test, and Ruff on Python 3.12, 3.13, and 3.14**.
+
+**Next engineering priorities**
+1. Expand crash-injection coverage to every filesystem durability boundary in initialization, append, rotation, migration, and retirement.
+2. Add a dedicated migration CLI only after the external checkpoint service configuration and secret-handling contract are finalized.
+3. Run repeatable append, verification, rotation, and retention benchmarks on representative Linux storage.
+4. Deploy and independently validate the hosted checkpoint service before any production evidence deployment.
