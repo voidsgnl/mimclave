@@ -81,7 +81,7 @@ No automatic deletion, pruning, rotation, or retention scheduler is implemented.
 
 ## Throughput measurement
 
-Run `python scripts/benchmark_evidence_store.py --events 100` from the repository root to measure synchronous append throughput and full-chain verification on the target filesystem and hardware. The benchmark uses a temporary directory and synthetic metadata-only events; it does not touch production evidence. CI run #151 passed a 10-event smoke test on Python 3.12–3.14 to ensure the benchmark remains executable, but CI timing is not a performance baseline. Record measurements on representative Linux storage before deciding whether a bounded asynchronous queue or indexed/checkpointed verification is justified.
+Run `python scripts/benchmark_evidence_store.py --events 1000 --segment-bytes 262144` from the repository root to compare synchronous append and full-chain verification for the legacy JSONL and segmented stores. The benchmark uses a temporary directory and synthetic metadata-only events; it does not touch production evidence. The segmented run uses an in-memory checkpoint double, so it measures local storage and hashing but excludes remote checkpoint latency and does not validate an independent anchor. CI run #245 passed a 10-event smoke test with a 1024-byte segment limit, exercising automatic rotation on Python 3.12–3.14. CI timing is not a performance baseline. Run multiple representative sizes on target Linux storage and record results before choosing operational segment limits or changing verification policy.
 
 
 ## HTTPS checkpoint client and remote service contract
