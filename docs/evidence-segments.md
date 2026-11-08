@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** Design with recorded decisions (2026-11-04). Nothing in this document is implemented yet. It extends `docs/evidence-storage.md` and does not change the behaviour of the current single-file `JsonlEvidenceStore`.
+**Status:** Design decisions plus an initial implementation. The legacy `JsonlEvidenceStore` remains unchanged; the separate `SegmentedEvidenceStore` is implemented in `src/mirage/telemetry/segmented.py`. CI verification and additional crash/tamper coverage are in progress.
 
 ## Problem
 
@@ -160,3 +160,47 @@ These resolve the questions raised in the first draft. They apply to the first i
 2. **Anchor history.** Out of scope for the first implementation; the `CheckpointAnchor` contract and `HttpsCheckpointAnchor` stay unchanged. The compensating controls are the retirement preconditions (verified export with a recorded `export_sha256`, checkpoint verified against the full chain before deletion) and the operator duty to archive the manifest and exports off-host. A service-side append-only checkpoint history is recorded as future work for the checkpoint service contract.
 3. **Limits.** No size defaults are hard-coded. `max_segment_bytes` (and optionally `max_segment_records`) and `hard_max_segment_bytes` are required explicit configuration, and construction fails unless the hard limit is greater than the soft limit. Operational defaults are chosen only after benchmark measurements; tests use small values.
 4. **Event-ID reuse across retired segments.** Accepted limitation for the first implementation: idempotency and conflict detection cover retained segments only. This assumes event IDs are generated uniquely per event; confirm that in `mirage.telemetry.events` before implementing, and revisit (for example with a per-segment ID summary in the manifest) if IDs ever become caller-supplied.
+
+
+## Initial implementation and usage
+
+The initial implementation exposes `SegmentedEvidenceStore` while preserving
+`JsonlEvidenceStore` for existing deployments. The segmented store requires
+an injected external `CheckpointAnchor`; it does not silently substitute a
+local file or an in-memory anchor.
+
+```python
+from mirage.telemetry.segmented import SegmentedEvidenceStore
+
+store = SegmentedEvidenceStore(
+    "/var/lib/mirage/evidence",
+    max_segment_bytes=8 * 1024 * 1024,
+    hard_max_segment_bytes=16 * 1024 * 1024,
+    anchor=checkpoint_anchor,
+)
+receipt = store.append(event)
+verification = store.verify_all()
+
+# Rotation is also available explicitly; automatic rotation is attempted
+# after an append reaches the soft limit.
+store.rotate()
+
+# Retirement requires an independently preserved export and an approval ID.
+store.retire_oldest_segment(
+    "/secure/archive/segment-00000001.jsonl",
+    approval_id="change-ticket-or-operator-approval",
+)
+```
+
+The byte limits above are illustrative only; operators must choose and
+benchmark explicit values for their storage and workload. No production
+defaults are provided. Automatic deletion is not performed. The legacy
+single-file API and its export/checkpoint behaviour remain available.
+
+The first implementation includes manifest hash verification, continuous
+record hashes and global numbering, private segment files, anchored sealing,
+hard-limit refusal, recovery of an opened-but-missing active segment and of a
+sealed segment whose successor has not yet been opened, plus operator-approved
+oldest-first retirement. It does not yet provide a legacy-log migration
+command, a CLI, automated crash injection at every filesystem boundary, or
+target-hardware benchmark results. These remain release-readiness work.
