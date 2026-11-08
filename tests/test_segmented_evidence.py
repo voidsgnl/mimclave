@@ -178,3 +178,48 @@ def test_soft_limit_triggers_automatic_rotation(tmp_path):
     assert second_segment.exists()
     assert anchor.checkpoint.record_count == 1
     assert store.verify_all().record_count == 1
+
+
+
+def test_reopen_recovers_crash_after_seal_before_successor_open(tmp_path):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+
+    with store._locked(exclusive=True) as manifest_fd:
+        entries, manifest_head = store._read_manifest(manifest_fd)
+        segments = store._reconcile(entries, manifest_fd, manifest_head)
+        active = segments[-1]
+        path = store.directory / active.file_name
+        data = store._read_segment(path, active)
+        local_result, _ = store._scan_segment(
+            data, active.first_record_number - 1, active.start_previous_hash
+        )
+        global_result = type(local_result)(
+            active.first_record_number - 1 + local_result.record_count,
+            local_result.head_hash,
+        )
+        checkpoint = store._publish_head(global_result)
+        store._append_manifest(
+            manifest_fd,
+            None,
+            {
+                "type": "segment_sealed",
+                "segment_id": active.segment_id,
+                "record_count": local_result.record_count,
+                "last_record_number": global_result.record_count,
+                "last_hash": local_result.head_hash,
+                "file_size": len(data),
+                "file_sha256": hashlib.sha256(data).hexdigest(),
+                "checkpoint_generation": checkpoint.generation,
+                "sealed_at": "test",
+            },
+        )
+
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    assert (store.directory / "segment-00000002.jsonl").exists()
+    assert reopened.verify_all().record_count == 1
