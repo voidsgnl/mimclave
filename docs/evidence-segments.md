@@ -101,7 +101,7 @@ Every sealed segment boundary is therefore anchored externally at the moment it 
 - Hard limit (`hard_max_segment_bytes`, which must be greater than the soft limit): append fails closed with an explicit storage error. Because the transport sends no decoy response when its event sink fails, an extended anchor outage eventually stops the decoy from answering rather than losing evidence. This is deliberate and must be documented for operators.
 
 **Crash recovery.** On open, reconcile manifest and directory:
-- `segment_sealed` with no successor `segment_opened`: create the next segment (idempotent) and write `segment_opened`.
+- `segment_sealed` with no successor `segment_opened`: append the successor-open intent first, then create the next empty segment (idempotently).
 - `segment_opened` whose file does not exist or is empty: create or accept the empty file.
 - A segment file present but absent from the manifest, a missing sealed segment that is not retired, a hash or size mismatch against `segment_sealed`, or a non-empty file for a segment the manifest has not opened: **integrity error**. Preserve everything and stop; never truncate, adopt, or repair.
 
