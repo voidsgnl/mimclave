@@ -1,4 +1,4 @@
-"""Command-line entry point for safe, read-only MIRAGE utilities."""
+"""Command-line entry point for safe MIRAGE utilities and operator workflows."""
 
 import argparse
 import json
