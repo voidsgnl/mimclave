@@ -74,3 +74,7 @@ All notable project changes are documented here.
 
 ### Fixed
 - Corrected escaped newline artifacts in the `ROADMAP.md` handoff log and renamed the stale "M2 started" heading to "M2 delivered".
+
+
+### M3 — Independent checkpoint service implementation
+- Added a SQLite-backed checkpoint service with authenticated conditional GET/PUT, strong ETags, monotonic compare-and-set, FULL synchronous commits, private file permissions, loopback-only binding, and an append-only hash-chained checkpoint history. Added request-size/type/authentication checks, request timeouts, token-strength enforcement, and systemd/Caddy deployment examples. The service is a reference implementation only and has not been deployed or independently audited. GitHub Actions run #277 passed 146 tests and Ruff on Python 3.12–3.14.
