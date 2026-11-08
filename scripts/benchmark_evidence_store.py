@@ -75,6 +75,7 @@ def _events(count: int):
 
 
 def _benchmark_legacy(directory: Path, events) -> _Result:
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "events.jsonl"
     store = JsonlEvidenceStore(path)
 
