@@ -148,7 +148,7 @@ class SegmentedEvidenceStore:
                 os.fsync(fd)
             finally:
                 os.close(fd)
-            if data and len(data) + len(line) >= self.max_segment_bytes:
+            if len(data) + len(line) >= self.max_segment_bytes:
                 try:
                     self._rotate_locked(entries, segments, manifest_fd, manifest_head)
                 except CheckpointError:
@@ -352,10 +352,12 @@ class SegmentedEvidenceStore:
         if current is not None:
             if current.record_count > result.record_count:
                 raise CheckpointError("external checkpoint is ahead of local evidence")
-            if current.record_count == result.record_count and not hmac.compare_digest(
-                current.head_hash, result.head_hash
-            ):
-                raise CheckpointError("external checkpoint does not match local evidence")
+            if current.record_count == result.record_count:
+                if not hmac.compare_digest(current.head_hash, result.head_hash):
+                    raise CheckpointError(
+                        "external checkpoint does not match local evidence"
+                    )
+                return current
         from mirage.telemetry.checkpoints import EvidenceCheckpoint
         checkpoint = EvidenceCheckpoint(generation, result.record_count, result.head_hash)
         try:
@@ -383,6 +385,7 @@ class SegmentedEvidenceStore:
                 "file_name": "segment-00000001.jsonl", "first_record_number": 1,
                 "start_previous_hash": GENESIS_HASH, "opened_at": datetime.now(UTC).isoformat(),
             })
+            self._fsync_directory()
             path = self.directory / "segment-00000001.jsonl"
             seg_fd = os.open(
                 path,
@@ -522,6 +525,24 @@ class SegmentedEvidenceStore:
                     data, segment.first_record_number - 1, segment.start_previous_hash
                 )
             segments.append(segment)
+        previous_number = 0
+        previous_hash = GENESIS_HASH
+        retired_prefix_ended = False
+        for index, segment in enumerate(segments):
+            if segment.first_record_number != previous_number + 1:
+                raise EvidenceIntegrityError("global segment record numbering is discontinuous")
+            if segment.start_previous_hash != previous_hash:
+                raise EvidenceIntegrityError("segment manifest hash links are discontinuous")
+            if segment.retired:
+                if retired_prefix_ended:
+                    raise EvidenceIntegrityError("retired segments must form an oldest-first prefix")
+            else:
+                retired_prefix_ended = True
+            if segment.opened != (index == len(segments) - 1):
+                raise EvidenceIntegrityError("only the newest segment may be active")
+            if not segment.opened:
+                previous_number = segment.last_record_number
+                previous_hash = segment.last_hash
         expected_files = {
             segment.file_name
             for segment in segments
