@@ -6,7 +6,7 @@ All notable project changes are documented here.
 
 ### Added
 - Added an initial `SegmentedEvidenceStore` alongside the unchanged legacy JSONL store, with a hash-chained manifest, continuous record chain, global record numbering, anchored segment sealing, crash recovery for interrupted opening/sealing transitions, and operator-approved oldest-first retirement.
-- Added segmented-store tests for rotation, cross-segment idempotency, checkpoint outage, sealed-segment tampering, and retirement preconditions. Additional crash-injection coverage and target-hardware benchmarks remain outstanding.
+- Added segmented-store tests for automatic/manual rotation, cross-segment idempotency, checkpoint mismatch/outage, sealed-segment tampering, retirement, and interrupted-transition recovery. GitHub Actions run #208 passed 105 tests and Ruff on Python 3.12, 3.13, and 3.14. Exhaustive crash-injection coverage and target-hardware benchmarks remain outstanding.
 
 ### Added
 - Added an opt-in asyncio HTTP transport restricted to literal loopback IPs, with bounded request reads, timeouts, connection limits, structured event emission, and explicit shutdown.
