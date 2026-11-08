@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** Design decisions plus an initial implementation. The legacy `JsonlEvidenceStore` remains unchanged; the separate `SegmentedEvidenceStore` is implemented in `src/mirage/telemetry/segmented.py`. CI verification and additional crash/tamper coverage are in progress.
+**Status:** Design decisions plus an initial CI-verified implementation. The legacy `JsonlEvidenceStore` remains unchanged; the separate `SegmentedEvidenceStore` is implemented in `src/mirage/telemetry/segmented.py`. GitHub Actions run #208 passed 105 tests and Ruff on Python 3.12–3.14. Exhaustive crash-injection/tamper coverage, migration tooling, and target-hardware benchmarking remain outstanding.
 
 ## Problem
 
@@ -205,5 +205,5 @@ not yet been opened, plus operator-approved oldest-first retirement. During a
 checkpoint-service outage, appends may continue below the hard limit; rotation
 is retried after each append. Once the hard limit would be exceeded, append
 fails closed. Integrity mismatches are never treated as temporary outages. It does not yet provide a legacy-log migration
-command, a CLI, automated crash injection at every filesystem boundary, or
+command, a CLI, exhaustive crash injection at every filesystem boundary, or
 target-hardware benchmark results. These remain release-readiness work.
