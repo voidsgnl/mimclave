@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client CI-verified (93 tests on Python 3.12–3.14). No hosted anchor service or retention deletion yet. Segmented rotation/retention design and decisions recorded in `docs/evidence-segments.md` (design only; not implemented).**
+**M3 — telemetry and evidence: legacy append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client are CI-verified. An initial separate `SegmentedEvidenceStore` now implements manifest chaining, anchored rotation, recovery of interrupted segment transitions, and operator-approved retirement. Full CI verification, exhaustive crash-injection tests, migration tooling, and target-hardware benchmarks remain outstanding. No hosted anchor service is deployed.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -136,12 +136,14 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Implement an HTTPS external-anchor client using verified TLS, bearer authentication, bounded responses, redirect refusal, and ETag conditional writes.
 - [x] CI run #169 passed 93 tests and Ruff on Python 3.12, 3.13, and 3.14; the benchmark smoke test also passed.
 - [x] Draft the segmented rotation/retention design (one continuous chain, hash-chained segment manifest, checkpoint-anchored rotation, operator-approved retirement) and record its decisions in `docs/evidence-segments.md`; design only.
-- [ ] Implement the segment manifest, rotation, crash recovery, and operator-approved retirement per `docs/evidence-segments.md`, with tampering and crash-injection tests. Before starting, confirm in `mirage.telemetry.events` that event IDs are generated uniquely (decision 4).
+- [x] Confirm event IDs are generated with UUIDs and implement the initial segment manifest, continuous chain, anchored rotation, interrupted-transition recovery, and operator-approved retirement in `src/mirage/telemetry/segmented.py`.
+- [ ] Complete exhaustive crash-injection and manifest-tampering tests; verify cross-segment checkpoint edge cases and run the full CI matrix after the latest changes.
+- [ ] Add explicit legacy single-file migration tooling and collect target-Linux benchmark measurements before choosing operational segment limits.
 - [ ] Deploy or integrate an independently administered checkpoint service implementing the documented durable compare-and-set API; client code alone does not create an independent anchor.
 
 ## Resume here — exact next steps
 1. Deploy or integrate an independently administered checkpoint service implementing the HTTPS API in `docs/evidence-storage.md`; configure its secret outside source control and verify its durability/backup/authorization controls.
-2. Segmented rotation/retention: design and decisions are in `docs/evidence-segments.md`. Decisions: sealed segments are verified on every append by default (`verify_sealed_on_append=True`); anchor history is deferred; segment size limits are required explicit configuration with no hard-coded defaults (hard limit must exceed soft limit); event-ID reuse across retired segments is an accepted limitation. Implement the segment manifest, rotation, crash recovery, and operator-approved retirement in `src/mirage/telemetry/` with tampering and crash-injection tests. Current exports preserve the complete genesis-linked chain; automatic pruning/deletion remains intentionally absent.
+2. Segmented rotation/retention: the initial implementation is in `src/mirage/telemetry/segmented.py`; design and decisions remain in `docs/evidence-segments.md`. Sealed segments are verified on every append by default (`verify_sealed_on_append=True`); anchor history is deferred; segment size limits require explicit configuration with no hard-coded defaults; event-ID reuse across retired segments is an accepted limitation. Finish crash-injection and manifest-tampering tests, verify checkpoint behaviour across retired boundaries, add legacy-log migration, and benchmark on target Linux storage. Automatic pruning/deletion remains operator-approved only.
 3. Run `python scripts/benchmark_evidence_store.py --events 1000` (and larger representative sizes) on target Linux storage; record results before considering indexing, bounded async batching, disabling `verify_sealed_on_append`, or choosing segment size defaults.
 4. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
 5. Update this roadmap and CHANGELOG after each meaningful change.
@@ -192,3 +194,6 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-04: Fixed escaped newline artifacts in this handoff log and renamed the stale "M2 started" heading to "M2 delivered" (commit `bcd74ee`, documentation only).
 - 2026-11-04: Added `docs/evidence-segments.md`, a design proposal for segmented evidence rotation and operator-approved retention (commit `0e9dca6`, documentation only).
 - 2026-11-04: Recorded decisions for the segmented evidence design: sealed segments verified on every append by default (`verify_sealed_on_append=True`), anchor history deferred, no hard-coded segment size defaults, event-ID reuse across retired segments accepted as a limitation. Documentation only. Next task: implement the manifest, rotation, crash recovery, and retirement with tests, after confirming event IDs are generated uniquely.
+
+
+- 2026-11-08: Added the initial `SegmentedEvidenceStore` alongside the legacy JSONL store. Implemented a hash-chained manifest, continuous evidence chain/global numbering, external-checkpoint-gated sealing, hard segment limits, interrupted-transition recovery, retained-segment idempotency, and operator-approved oldest-first retirement. Added focused tests and documented the API. CI and broader crash-injection/security validation remain pending; no production anchor service or target-hardware benchmark is included.
