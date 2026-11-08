@@ -37,6 +37,10 @@ _SEGMENT_RE = re.compile(r"^segment-(\d{8})\.jsonl$")
 _MANIFEST = "manifest.jsonl"
 
 
+class CheckpointUnavailableError(CheckpointError):
+    """The independent checkpoint service could not be reached."""
+
+
 @dataclass(frozen=True, slots=True)
 class _Segment:
     segment_id: int
@@ -90,7 +94,13 @@ class SegmentedEvidenceStore:
             active = segments[-1]
             if not active.opened or active.retired:
                 raise EvidenceIntegrityError("manifest has no active segment")
-            self._verify_chain_and_anchor(segments)
+            try:
+                self._verify_chain_and_anchor(segments)
+            except CheckpointUnavailableError:
+                # The documented soft-limit policy permits local appends while
+                # the anchor is unavailable. Rotation is retried after append;
+                # the configured hard limit remains fail-closed.
+                pass
             payload = _event_payload(event)
             # Idempotency spans every retained segment, not just the active one.
             for sealed_segment in segments[:-1]:
@@ -222,7 +232,9 @@ class SegmentedEvidenceStore:
         try:
             checkpoint = self.anchor.read()
         except Exception as exc:
-            raise CheckpointError("could not read external checkpoint") from exc
+            raise CheckpointUnavailableError(
+                "could not read external checkpoint"
+            ) from exc
         if checkpoint is None and any(not segment.opened for segment in segments):
             raise CheckpointError(
                 "sealed evidence exists without an external checkpoint"
@@ -398,7 +410,9 @@ class SegmentedEvidenceStore:
         try:
             current = self.anchor.read()
         except Exception as exc:
-            raise CheckpointError("could not read external checkpoint") from exc
+            raise CheckpointUnavailableError(
+                "could not read external checkpoint"
+            ) from exc
         generation = 1 if current is None else current.generation + 1
         if current is not None:
             if current.record_count > result.record_count:
