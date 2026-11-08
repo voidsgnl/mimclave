@@ -214,7 +214,7 @@ arguments:
 ```bash
 read -rsp "Checkpoint bearer token: " MIRAGE_CHECKPOINT_TOKEN
 export MIRAGE_CHECKPOINT_TOKEN
-printf '\\n'
+printf '\n'
 
 mirage migrate-evidence \
   /var/lib/mirage/evidence.jsonl \
