@@ -205,6 +205,32 @@ not yet been opened, plus operator-approved oldest-first retirement. Targeted
 crash-injection coverage now also exercises manifest fsync before initial segment creation, initialization after segment fsync but before directory fsync, rotation after successor-file fsync but before directory fsync, and migration failures immediately before publication and after rename but before parent-directory fsync. An append interrupted after its record fsync but before receipt delivery is retried idempotently. A partial record write is deliberately not truncated or silently repaired: reopening fails closed with an incomplete-record integrity error. Checkpoint tests cover a valid prefix inside the active segment, a checkpoint ahead of local evidence, and a checkpoint that points inside a retired segment. GitHub Actions run #238 passed 130 tests, the benchmark smoke test, and Ruff on Python 3.12–3.14. During a checkpoint-service outage, appends may continue below the hard limit; rotation is retried after each append. Once the hard limit would be exceeded, append fails closed. Integrity mismatches are never treated as temporary outages. A dedicated migration CLI, exhaustive syscall/filesystem-boundary crash coverage, and target-hardware benchmark results remain outstanding. GitHub Actions run #251 passed 132 tests and Ruff on Python 3.12–3.14, including destination-race and oversized-source migration tests.
 
 
+## Legacy migration CLI
+
+The API is also available through the explicit operator command. Load the bearer
+token into the environment without putting it in shell history or command
+arguments:
+
+```bash
+read -rsp "Checkpoint bearer token: " MIRAGE_CHECKPOINT_TOKEN
+export MIRAGE_CHECKPOINT_TOKEN
+printf '\\n'
+
+mirage migrate-evidence \
+  /var/lib/mirage/evidence.jsonl \
+  /var/lib/mirage/evidence-segmented \
+  --checkpoint-url https://anchor.example.net/v1/mirage/checkpoint \
+  --max-segment-bytes 8388608 \
+  --hard-max-segment-bytes 16777216
+
+unset MIRAGE_CHECKPOINT_TOKEN
+```
+
+The command reads the token from `MIRAGE_CHECKPOINT_TOKEN` by default (or
+another variable selected with `--token-env`). It never accepts the token as a
+command-line argument and does not print it. A real, independently hosted
+checkpoint service must be configured before running the migration.
+
 ## Legacy migration API
 
 The migration is an explicit, non-destructive operation. First configure an independent checkpoint anchor, then:
