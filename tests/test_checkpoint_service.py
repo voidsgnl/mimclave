@@ -275,3 +275,14 @@ def test_checkpoint_service_persists_state_across_restart(tmp_path):
         reopened.shutdown()
         reopened.server_close()
         thread.join(timeout=2)
+
+
+
+def test_checkpoint_service_rejects_short_bearer_token(tmp_path):
+    with pytest.raises(ValueError, match="at least 32 characters"):
+        create_checkpoint_server(
+            database_path=tmp_path / "private" / "checkpoint.sqlite3",
+            bearer_token="too-short",
+            host="127.0.0.1",
+            port=0,
+        )
