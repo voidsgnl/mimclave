@@ -261,3 +261,171 @@ def test_reopen_recovers_opened_segment_with_missing_file(tmp_path):
     assert active_path.exists()
     assert active_path.stat().st_size == 0
     assert reopened.verify_all().record_count == 1
+
+
+
+def test_reopen_after_checkpoint_published_before_seal_manifest(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    original = store._append_manifest
+
+    def interrupt_before_seal(fd, previous, entry):
+        if entry.get("type") == "segment_sealed":
+            raise RuntimeError("simulated process crash")
+        return original(fd, previous, entry)
+
+    monkeypatch.setattr(store, "_append_manifest", interrupt_before_seal)
+    with pytest.raises(RuntimeError, match="simulated"):
+        store.rotate()
+    assert anchor.checkpoint.record_count == 1
+
+    monkeypatch.setattr(store, "_append_manifest", original)
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    assert reopened.verify_all().record_count == 1
+    reopened.rotate()
+    assert reopened.verify_all().record_count == 1
+
+
+def test_reopen_after_seal_manifest_before_segment_chmod(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    original = store._append_manifest
+
+    def interrupt_after_seal(fd, previous, entry):
+        result = original(fd, previous, entry)
+        if entry.get("type") == "segment_sealed":
+            raise RuntimeError("simulated process crash")
+        return result
+
+    monkeypatch.setattr(store, "_append_manifest", interrupt_after_seal)
+    with pytest.raises(RuntimeError, match="simulated"):
+        store.rotate()
+
+    monkeypatch.setattr(store, "_append_manifest", original)
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    sealed = store.directory / "segment-00000001.jsonl"
+    assert sealed.stat().st_mode & 0o777 == 0o400
+    assert (store.directory / "segment-00000002.jsonl").exists()
+    assert reopened.verify_all().record_count == 1
+
+
+def test_reopen_after_seal_fsync_before_successor_manifest(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    original = store._append_manifest
+
+    def interrupt_before_successor(fd, previous, entry):
+        if (
+            entry.get("type") == "segment_opened"
+            and entry.get("segment_id") == 2
+        ):
+            raise RuntimeError("simulated process crash")
+        return original(fd, previous, entry)
+
+    monkeypatch.setattr(store, "_append_manifest", interrupt_before_successor)
+    with pytest.raises(RuntimeError, match="simulated"):
+        store.rotate()
+
+    monkeypatch.setattr(store, "_append_manifest", original)
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    assert (store.directory / "segment-00000002.jsonl").exists()
+    assert reopened.verify_all().record_count == 1
+
+
+def test_reopen_after_successor_manifest_before_file_creation(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    original_open = __import__("os").open
+
+    def interrupt_successor_create(path, *args, **kwargs):
+        if str(path).endswith("segment-00000002.jsonl"):
+            raise RuntimeError("simulated process crash")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr("mirage.telemetry.segmented.os.open", interrupt_successor_create)
+    with pytest.raises(RuntimeError, match="simulated"):
+        store.rotate()
+
+    monkeypatch.setattr("mirage.telemetry.segmented.os.open", original_open)
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    successor = store.directory / "segment-00000002.jsonl"
+    assert successor.exists()
+    assert successor.stat().st_size == 0
+    assert reopened.verify_all().record_count == 1
+
+
+def test_reopen_after_retirement_manifest_before_unlink(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    source = store.directory / "segment-00000001.jsonl"
+    export = tmp_path / "retirement-export.jsonl"
+    shutil.copyfile(source, export)
+    export.chmod(0o600)
+    original_unlink = source.unlink
+
+    def interrupt_unlink(*args, **kwargs):
+        raise RuntimeError("simulated process crash")
+
+    monkeypatch.setattr(type(source), "unlink", lambda self, *a, **kw: (
+        interrupt_unlink(*a, **kw) if self == source else original_unlink(*a, **kw)
+    ))
+    with pytest.raises(RuntimeError, match="simulated"):
+        store.retire_oldest_segment(export, approval_id="crash-test")
+
+    monkeypatch.undo()
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    assert source.exists()
+    assert reopened.verify_all().record_count == 1
+
+
+def test_reopen_after_retirement_unlink_before_directory_fsync(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    source = store.directory / "segment-00000001.jsonl"
+    export = tmp_path / "retirement-export.jsonl"
+    shutil.copyfile(source, export)
+    export.chmod(0o600)
+
+    def interrupt_directory_sync():
+        raise RuntimeError("simulated process crash")
+
+    monkeypatch.setattr(store, "_fsync_directory", interrupt_directory_sync)
+    with pytest.raises(RuntimeError, match="simulated"):
+        store.retire_oldest_segment(export, approval_id="crash-test")
+
+    monkeypatch.undo()
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    assert not source.exists()
+    assert reopened.verify_all().record_count == 1
