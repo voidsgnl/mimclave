@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive platform designed to place controlled deceptio
 
 ## Project status
 
-M1 configuration and read-only discovery and M2 safe HTTP/HTTPS simulation are implemented; transports remain restricted to loopback and require an explicitly provisioned TLS context. M3 now includes the legacy hash-chained JSONL store, the segmented evidence store with checkpoint-anchored rotation and operator-approved retirement, verified export, a non-destructive legacy migration API and CLI, and an HTTPS checkpoint client. GitHub Actions run #257 passed 134 tests and Ruff on Python 3.12–3.14. The independently hosted checkpoint service is still a deployment dependency. No production traffic interception, isolated sandbox execution, or management dashboard is implemented. Do not deploy MIRAGE in front of production services.
+M1 configuration and read-only discovery and M2 safe HTTP/HTTPS simulation are implemented; transports remain restricted to loopback and require an explicitly provisioned TLS context. M3 now includes the legacy hash-chained JSONL store, the segmented evidence store with checkpoint-anchored rotation and operator-approved retirement, verified export, a non-destructive legacy migration API and CLI, and an HTTPS checkpoint client. GitHub Actions run #257 passed 134 tests and Ruff on Python 3.12–3.14. A SQLite-backed checkpoint service with hash-chained history and systemd/Caddy deployment examples is included, but it has not been deployed or independently audited; it must run on a separate host to provide an independent anchor. No production traffic interception, isolated sandbox execution, or management dashboard is implemented. Do not deploy MIRAGE in front of production services.
 
 ## Core principles
 
