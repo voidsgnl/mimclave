@@ -1,5 +1,4 @@
 import json
-import os
 import stat
 import threading
 import urllib.error
