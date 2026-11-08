@@ -429,3 +429,61 @@ def test_reopen_after_retirement_unlink_before_directory_fsync(tmp_path, monkeyp
     )
     assert not source.exists()
     assert reopened.verify_all().record_count == 1
+
+
+
+def test_manifest_entry_tampering_is_detected(tmp_path):
+    store, _ = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    data = store.manifest_path.read_bytes()
+    assert b'"segment_id":1' in data
+    store.manifest_path.write_bytes(data.replace(b'"segment_id":1', b'"segment_id":9', 1))
+
+    with pytest.raises(EvidenceIntegrityError, match="manifest hash mismatch"):
+        store.verify_all()
+
+
+def test_incomplete_manifest_tail_is_detected(tmp_path):
+    store, _ = make_store(tmp_path)
+    data = store.manifest_path.read_bytes()
+    store.manifest_path.write_bytes(data[:-1])
+
+    with pytest.raises(EvidenceIntegrityError, match="incomplete trailing"):
+        store.verify_all()
+
+
+def test_unmanifested_segment_file_is_detected(tmp_path):
+    store, _ = make_store(tmp_path)
+    unexpected = store.directory / "segment-00000002.jsonl"
+    unexpected.write_bytes(b"")
+    unexpected.chmod(0o600)
+
+    with pytest.raises(EvidenceIntegrityError, match="unmanifested"):
+        store.verify_all()
+
+
+def test_missing_sealed_segment_is_detected(tmp_path):
+    store, _ = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    (store.directory / "segment-00000001.jsonl").unlink()
+
+    with pytest.raises(EvidenceIntegrityError, match="segment file is missing"):
+        store.verify_all()
+
+
+def test_checkpoint_verifies_across_retired_segment_prefix(tmp_path):
+    store, _ = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    store.append(make_event(2))
+    store.rotate()
+
+    source = store.directory / "segment-00000001.jsonl"
+    export = tmp_path / "retired-prefix-export.jsonl"
+    shutil.copyfile(source, export)
+    export.chmod(0o600)
+    store.retire_oldest_segment(export, approval_id="retired-prefix-checkpoint")
+
+    assert store.verify_all().record_count == 2
