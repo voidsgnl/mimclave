@@ -343,6 +343,7 @@ class SegmentedEvidenceStore:
             active = segments[-1]
             if not active.opened or active.retired:
                 raise EvidenceIntegrityError("manifest has no active segment")
+            self._verify_chain_and_anchor(segments)
             self._rotate_locked(entries, segments, manifest_fd, manifest_head)
 
     def _rotate_locked(
@@ -521,7 +522,7 @@ class SegmentedEvidenceStore:
         for entry in entries:
             kind = entry.get("type")
             sid = entry.get("segment_id")
-            if not isinstance(sid, int) or sid < 1:
+            if not isinstance(sid, int) or isinstance(sid, bool) or sid < 1:
                 raise EvidenceIntegrityError("manifest segment ID is invalid")
             state = states.setdefault(sid, {})
             if kind == "segment_opened":
@@ -543,8 +544,19 @@ class SegmentedEvidenceStore:
         segments = []
         for sid in sorted(states):
             state = states[sid]
-            if not state.get("file_name") or not state.get("first_record_number"):
-                raise EvidenceIntegrityError("segment opening metadata is incomplete")
+            expected_name = f"segment-{sid:08d}.jsonl"
+            if state.get("file_name") != expected_name:
+                raise EvidenceIntegrityError("segment file name is invalid")
+            first_number = state.get("first_record_number")
+            start_hash = state.get("start_previous_hash")
+            if (
+                not isinstance(first_number, int)
+                or isinstance(first_number, bool)
+                or first_number < 1
+                or not isinstance(start_hash, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", start_hash)
+            ):
+                raise EvidenceIntegrityError("segment opening metadata is invalid")
             sealed = state.get("sealed", {})
             retired = bool(state.get("retired"))
             segment = _Segment(
@@ -685,6 +697,10 @@ class SegmentedEvidenceStore:
         count = 0
         index: dict[str, tuple[int, dict[str, Any], str]] = {}
         for line_number, line in enumerate(data.splitlines(), 1):
+            if not line or len(line) + 1 > MAX_RECORD_BYTES:
+                raise EvidenceIntegrityError(
+                    f"segment record {line_number} is empty or exceeds the size limit"
+                )
             try:
                 envelope = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
             except (json.JSONDecodeError, EvidenceIntegrityError) as exc:
