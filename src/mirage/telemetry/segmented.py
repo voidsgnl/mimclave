@@ -541,7 +541,9 @@ class SegmentedEvidenceStore:
                 raise EvidenceIntegrityError("segment manifest hash links are discontinuous")
             if segment.retired:
                 if retired_prefix_ended:
-                    raise EvidenceIntegrityError("retired segments must form an oldest-first prefix")
+                    raise EvidenceIntegrityError(
+                        "retired segments must form an oldest-first prefix"
+                    )
             else:
                 retired_prefix_ended = True
             if segment.opened and index != len(segments) - 1:
