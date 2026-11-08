@@ -238,6 +238,10 @@ def create_checkpoint_server(
         sys_version = ""
         protocol_version = "HTTP/1.1"
 
+        def setup(self) -> None:
+            super().setup()
+            self.connection.settimeout(5.0)
+
         def log_message(self, format: str, *args: Any) -> None:
             # Never log request headers or bearer credentials.
             return
@@ -245,6 +249,7 @@ def create_checkpoint_server(
         def _send(self, status: int, body: bytes = b"", etag: str | None = None) -> None:
             self.close_connection = True
             self.send_response(status)
+            self.send_header("Cache-Control", "no-store")
             if body:
                 self.send_header("Content-Type", "application/json")
             if etag is not None:
@@ -255,7 +260,8 @@ def create_checkpoint_server(
                 self.wfile.write(body)
 
         def _authorized(self) -> bool:
-            supplied = self.headers.get("Authorization", "")
+            values = self.headers.get_all("Authorization", [])
+            supplied = values[0] if len(values) == 1 else ""
             expected = f"Bearer {bearer_token}"
             if not hmac.compare_digest(
                 supplied.encode("utf-8"), expected.encode("utf-8")
@@ -289,17 +295,20 @@ def create_checkpoint_server(
         def do_PUT(self) -> None:
             if not self._path_ok() or not self._authorized():
                 return
-            if self.headers.get("Transfer-Encoding") is not None:
+            if self.headers.get_all("Transfer-Encoding", []):
                 self._send(400, b'{"error":"transfer encoding is not supported"}')
                 return
+            content_types = self.headers.get_all("Content-Type", [])
             content_type = (
-                self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                content_types[0].split(";", 1)[0].strip().lower()
+                if len(content_types) == 1 else ""
             )
             if content_type != "application/json":
                 self._send(415, b'{"error":"application/json required"}')
                 return
-            raw_length = self.headers.get("Content-Length")
-            if raw_length is None or not raw_length.isdecimal():
+            lengths = self.headers.get_all("Content-Length", [])
+            raw_length = lengths[0] if len(lengths) == 1 else ""
+            if not raw_length.isdecimal():
                 self._send(400, b'{"error":"valid content length required"}')
                 return
             length = int(raw_length)
@@ -319,8 +328,13 @@ def create_checkpoint_server(
                 self._send(400, b'{"error":"invalid checkpoint"}')
                 return
 
-            if_match = self.headers.get("If-Match")
-            if_none_match = self.headers.get("If-None-Match")
+            match_values = self.headers.get_all("If-Match", [])
+            none_match_values = self.headers.get_all("If-None-Match", [])
+            if len(match_values) > 1 or len(none_match_values) > 1:
+                self._send(400, b'{"error":"duplicate conditional header"}')
+                return
+            if_match = match_values[0] if match_values else None
+            if_none_match = none_match_values[0] if none_match_values else None
             if if_none_match == "*" and if_match is None:
                 expected_etag = None
             elif if_match is not None and if_none_match is None:
