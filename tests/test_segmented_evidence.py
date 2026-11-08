@@ -822,3 +822,55 @@ def test_rotation_recovers_after_successor_fsync_before_directory_fsync(
     assert successor.exists()
     assert successor.stat().st_size == 0
     assert reopened.verify_all().record_count == 1
+
+
+
+def test_checkpoint_prefix_inside_active_segment_is_verified(tmp_path):
+    store, anchor = make_store(tmp_path, soft=3000, hard=8192)
+    first = store.append(make_event(1))
+    anchor.checkpoint = EvidenceCheckpoint(
+        generation=1,
+        record_count=first.record_number,
+        head_hash=first.record_hash,
+    )
+    store.append(make_event(2))
+
+    assert store.verify_all().record_count == 2
+
+
+def test_checkpoint_ahead_of_evidence_is_rejected(tmp_path):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    anchor.checkpoint = EvidenceCheckpoint(
+        generation=1,
+        record_count=2,
+        head_hash="f" * 64,
+    )
+
+    with pytest.raises(CheckpointError, match="shorter than its external checkpoint"):
+        store.verify_all()
+
+
+def test_checkpoint_inside_retired_segment_is_rejected(tmp_path):
+    store, anchor = make_store(tmp_path, soft=3000, hard=8192)
+    store.append(make_event(1))
+    store.append(make_event(2))
+    store.rotate()
+    store.append(make_event(3))
+    store.rotate()
+
+    first_segment = store.directory / "segment-00000001.jsonl"
+    first_record = first_segment.read_bytes().splitlines()[0]
+    first_hash = first_record.rsplit(b'"record_hash":"', 1)[1].split(b'"', 1)[0]
+    export = tmp_path / "retired-prefix-export.jsonl"
+    shutil.copyfile(first_segment, export)
+    export.chmod(0o600)
+    store.retire_oldest_segment(export, approval_id="checkpoint-interior-test")
+
+    anchor.checkpoint = EvidenceCheckpoint(
+        generation=anchor.checkpoint.generation,
+        record_count=1,
+        head_hash=first_hash.decode("ascii"),
+    )
+    with pytest.raises(CheckpointError, match="does not match its external checkpoint"):
+        store.verify_all()
