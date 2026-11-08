@@ -25,6 +25,7 @@ from mirage.telemetry.checkpoints import (
 )
 
 _MAX_BODY_BYTES = 4096
+_HISTORY_GENESIS = "0" * 64
 
 
 def _etag(checkpoint: EvidenceCheckpoint) -> str:
@@ -58,6 +59,20 @@ def _decode_checkpoint(data: bytes) -> EvidenceCheckpoint:
     ):
         raise ValueError("checkpoint fields have invalid types")
     return EvidenceCheckpoint(**payload)
+
+
+
+def _history_entry_hash(
+    checkpoint: EvidenceCheckpoint, previous_history_hash: str
+) -> str:
+    unsigned = {
+        "generation": checkpoint.generation,
+        "record_count": checkpoint.record_count,
+        "head_hash": checkpoint.head_hash,
+        "previous_history_hash": previous_history_hash,
+    }
+    payload = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 class _CheckpointDatabase:
@@ -111,6 +126,35 @@ class _CheckpointDatabase:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS checkpoint_history (
+                    generation INTEGER PRIMARY KEY,
+                    record_count INTEGER NOT NULL,
+                    head_hash TEXT NOT NULL,
+                    previous_history_hash TEXT NOT NULL,
+                    entry_hash TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS checkpoint_history_no_update
+                BEFORE UPDATE ON checkpoint_history
+                BEGIN
+                    SELECT RAISE(ABORT, 'checkpoint history is append-only');
+                END
+                """
+            )
+            connection.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS checkpoint_history_no_delete
+                BEFORE DELETE ON checkpoint_history
+                BEGIN
+                    SELECT RAISE(ABORT, 'checkpoint history is append-only');
+                END
+                """
+            )
             connection.commit()
         finally:
             connection.close()
@@ -136,17 +180,65 @@ class _CheckpointDatabase:
         finally:
             os.close(fd)
 
+    def _verify_history(
+        self, connection: sqlite3.Connection
+    ) -> tuple[EvidenceCheckpoint | None, str]:
+        rows = connection.execute(
+            """
+            SELECT generation, record_count, head_hash,
+                   previous_history_hash, entry_hash
+            FROM checkpoint_history
+            ORDER BY generation
+            """
+        ).fetchall()
+        previous_hash = _HISTORY_GENESIS
+        previous_count = 0
+        latest: EvidenceCheckpoint | None = None
+        for expected_generation, row in enumerate(rows, 1):
+            generation, record_count, head_hash, previous_link, entry_hash = row
+            try:
+                checkpoint = EvidenceCheckpoint(generation, record_count, head_hash)
+            except (TypeError, ValueError) as exc:
+                raise sqlite3.DatabaseError("checkpoint history fields are invalid") from exc
+            expected_hash = _history_entry_hash(checkpoint, previous_hash)
+            if (
+                generation != expected_generation
+                or record_count <= previous_count
+                or previous_link != previous_hash
+                or not isinstance(entry_hash, str)
+                or not hmac.compare_digest(expected_hash, entry_hash)
+            ):
+                raise sqlite3.DatabaseError("checkpoint history integrity check failed")
+            latest = checkpoint
+            previous_count = record_count
+            previous_hash = entry_hash
+
+        current_row = connection.execute(
+            "SELECT generation, record_count, head_hash FROM checkpoint WHERE singleton = 1"
+        ).fetchone()
+        if latest is None:
+            if current_row is not None:
+                raise sqlite3.DatabaseError("current checkpoint is missing from history")
+        elif current_row != (
+            latest.generation, latest.record_count, latest.head_hash
+        ):
+            raise sqlite3.DatabaseError("current checkpoint does not match history")
+        return latest, previous_hash
+
     def read(self) -> tuple[EvidenceCheckpoint | None, str | None]:
         connection = self._connect()
         try:
-            row = connection.execute(
-                "SELECT generation, record_count, head_hash FROM checkpoint WHERE singleton = 1"
-            ).fetchone()
+            connection.execute("BEGIN")
+            checkpoint, _ = self._verify_history(connection)
+            connection.commit()
+        except Exception:
+            if connection.in_transaction:
+                connection.rollback()
+            raise
         finally:
             connection.close()
-        if row is None:
+        if checkpoint is None:
             return None, None
-        checkpoint = EvidenceCheckpoint(*row)
         return checkpoint, _etag(checkpoint)
 
     def compare_and_set(
@@ -158,10 +250,7 @@ class _CheckpointDatabase:
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute(
-                "SELECT generation, record_count, head_hash FROM checkpoint WHERE singleton = 1"
-            ).fetchone()
-            current = None if row is None else EvidenceCheckpoint(*row)
+            current, history_head = self._verify_history(connection)
             current_etag = None if current is None else _etag(current)
             if current_etag != expected_etag:
                 raise CheckpointConflictError("checkpoint conditional request did not match")
@@ -189,6 +278,22 @@ class _CheckpointDatabase:
                     """,
                     (checkpoint.generation, checkpoint.record_count, checkpoint.head_hash),
                 )
+
+            entry_hash = _history_entry_hash(checkpoint, history_head)
+            connection.execute(
+                """
+                INSERT INTO checkpoint_history
+                    (generation, record_count, head_hash, previous_history_hash, entry_hash)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    checkpoint.generation,
+                    checkpoint.record_count,
+                    checkpoint.head_hash,
+                    history_head,
+                    entry_hash,
+                ),
+            )
             connection.commit()
         except Exception:
             if connection.in_transaction:
