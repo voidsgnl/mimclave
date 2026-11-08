@@ -10,7 +10,7 @@ from mirage.telemetry.checkpoints import (
 )
 from mirage.telemetry.events import SessionEventFactory
 from mirage.telemetry.segmented import SegmentedEvidenceStore
-from mirage.telemetry.store import EvidenceIntegrityError, EvidenceStoreError
+from mirage.telemetry.store import (\n    EvidenceIntegrityError, EvidenceStoreError, JsonlEvidenceStore\n)
 
 
 class MemoryAnchor:
@@ -487,3 +487,72 @@ def test_checkpoint_verifies_across_retired_segment_prefix(tmp_path):
     store.retire_oldest_segment(export, approval_id="retired-prefix-checkpoint")
 
     assert store.verify_all().record_count == 2
+
+
+
+def test_legacy_migration_preserves_original_chain_and_source(tmp_path):
+    anchor = MemoryAnchor()
+    legacy_path = tmp_path / "legacy.jsonl"
+    legacy = JsonlEvidenceStore(legacy_path)
+    legacy.append(make_event(1))
+    legacy.append(make_event(2))
+    original_bytes = legacy_path.read_bytes()
+    original_verification = legacy.verify()
+
+    migrated = SegmentedEvidenceStore.migrate_legacy_log(
+        legacy_path,
+        tmp_path / "segmented",
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+
+    first_segment = migrated.directory / "segment-00000001.jsonl"
+    assert first_segment.read_bytes() == original_bytes
+    assert legacy_path.read_bytes() == original_bytes
+    assert migrated.verify_all() == original_verification
+    assert anchor.checkpoint.record_count == 2
+    assert migrated.append(make_event(3)).record_number == 3
+    assert migrated.verify_all().record_count == 3
+
+
+def test_legacy_migration_rejects_tampered_source_without_destination(tmp_path):
+    anchor = MemoryAnchor()
+    legacy_path = tmp_path / "legacy.jsonl"
+    legacy = JsonlEvidenceStore(legacy_path)
+    legacy.append(make_event(1))
+    data = legacy_path.read_bytes()
+    legacy_path.chmod(0o600)
+    legacy_path.write_bytes(data.replace(b'"status_code":200', b'"status_code":201'))
+
+    destination = tmp_path / "segmented"
+    with pytest.raises(EvidenceIntegrityError):
+        SegmentedEvidenceStore.migrate_legacy_log(
+            legacy_path,
+            destination,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=anchor,
+        )
+    assert not destination.exists()
+    assert anchor.checkpoint is None
+
+
+def test_legacy_migration_rejects_checkpoint_conflict(tmp_path):
+    anchor = MemoryAnchor()
+    legacy_path = tmp_path / "legacy.jsonl"
+    legacy = JsonlEvidenceStore(legacy_path)
+    legacy.append(make_event(1))
+    anchor.checkpoint = EvidenceCheckpoint(
+        generation=1, record_count=1, head_hash="f" * 64
+    )
+
+    with pytest.raises(CheckpointError):
+        SegmentedEvidenceStore.migrate_legacy_log(
+            legacy_path,
+            tmp_path / "segmented",
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=anchor,
+        )
+    assert not (tmp_path / "segmented").exists()
