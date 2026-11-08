@@ -3,7 +3,7 @@ import shutil
 
 import pytest
 
-from mirage.telemetry.checkpoints import CheckpointConflictError, EvidenceCheckpoint
+from mirage.telemetry.checkpoints import CheckpointConflictError, CheckpointError
 from mirage.telemetry.events import SessionEventFactory
 from mirage.telemetry.segmented import SegmentedEvidenceStore
 from mirage.telemetry.store import EvidenceIntegrityError, EvidenceStoreError
@@ -86,7 +86,7 @@ def test_rotation_requires_external_checkpoint(tmp_path):
         anchor=UnavailableAnchor(),
     )
     store.append(make_event())
-    with pytest.raises(Exception):
+    with pytest.raises(CheckpointError):
         store.rotate()
     assert store.verify_all().record_count == 1
     assert (store.directory / "segment-00000001.jsonl").exists()
