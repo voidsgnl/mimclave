@@ -4,6 +4,7 @@ import shutil
 
 import pytest
 
+import mirage.telemetry.segmented as segmented_module
 from mirage.telemetry.checkpoints import (
     CheckpointConflictError,
     CheckpointError,
@@ -693,9 +694,7 @@ def test_migration_failure_before_publish_keeps_source_and_no_destination(
     def interrupt_publish(*args, **kwargs):
         raise RuntimeError("simulated process crash before publish")
 
-    monkeypatch.setattr(
-        "mirage.telemetry.segmented._rename_directory_noreplace", interrupt_publish
-    )
+    monkeypatch.setattr(segmented_module, "_rename_directory_noreplace", interrupt_publish)
     with pytest.raises(RuntimeError, match="before publish"):
         SegmentedEvidenceStore.migrate_legacy_log(
             source,
@@ -737,9 +736,7 @@ def test_migration_recovers_complete_destination_if_parent_fsync_fails(
             raise RuntimeError("simulated process crash after publish")
         return original_fsync(fd)
 
-    monkeypatch.setattr(
-        "mirage.telemetry.segmented._rename_directory_noreplace", track_publish
-    )
+    monkeypatch.setattr(segmented_module, "_rename_directory_noreplace", track_publish)
     monkeypatch.setattr("mirage.telemetry.segmented.os.fsync", interrupt_parent_sync)
     with pytest.raises(RuntimeError, match="after publish"):
         SegmentedEvidenceStore.migrate_legacy_log(
@@ -925,8 +922,7 @@ def test_migration_publication_does_not_overwrite_racing_destination(
         return original_publish(staging, target)
 
     monkeypatch.setattr(
-        "mirage.telemetry.segmented._rename_directory_noreplace",
-        create_destination_then_publish,
+        segmented_module, "_rename_directory_noreplace", create_destination_then_publish
     )
     with pytest.raises(EvidenceStoreError, match="destination already exists"):
         SegmentedEvidenceStore.migrate_legacy_log(
