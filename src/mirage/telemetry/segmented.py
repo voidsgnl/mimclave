@@ -177,7 +177,10 @@ class SegmentedEvidenceStore:
             return self._verify_chain_and_anchor(segments)
 
     def _verify_chain_and_anchor(
-        self, segments: list[_Segment]
+        self,
+        segments: list[_Segment],
+        *,
+        verify_sealed: bool = True,
     ) -> StoreVerification:
         previous_hash = GENESIS_HASH
         next_number = 1
@@ -195,6 +198,12 @@ class SegmentedEvidenceStore:
             if segment.retired:
                 if segment.last_record_number < segment.first_record_number:
                     raise EvidenceIntegrityError("retired segment record range is invalid")
+                previous_hash = segment.last_hash
+                total = segment.last_record_number
+                next_number = total + 1
+                hashes_by_number[total] = previous_hash
+                continue
+            if not segment.opened and not verify_sealed:
                 previous_hash = segment.last_hash
                 total = segment.last_record_number
                 next_number = total + 1
