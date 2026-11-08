@@ -147,7 +147,9 @@ class SegmentedEvidenceStore:
                     # the next append; the hard limit remains authoritative.
                     pass
             return EvidenceReceipt(
-                verification.record_count + 1, event.event_id, record_hash
+                active.first_record_number + verification.record_count,
+                event.event_id,
+                record_hash,
             )
 
     def verify_all(self) -> StoreVerification:
@@ -191,7 +193,11 @@ class SegmentedEvidenceStore:
         result, _ = self._scan_segment(data, active.first_record_number - 1, active.start_previous_hash)
         if result.record_count == 0:
             raise EvidenceStoreError("cannot rotate an empty evidence segment")
-        checkpoint = self._publish_head(result)
+        global_result = StoreVerification(
+            active.first_record_number - 1 + result.record_count,
+            result.head_hash,
+        )
+        checkpoint = self._publish_head(global_result)
         sealed = {
             "type": "segment_sealed",
             "segment_id": active.segment_id,
@@ -359,7 +365,7 @@ class SegmentedEvidenceStore:
             if sealed:
                 if len(data) != segment.file_size or not hmac.compare_digest(hashlib.sha256(data).hexdigest(), segment.file_sha256):
                     raise EvidenceIntegrityError("sealed segment size or digest mismatch")
-                if not retired:
+                if not retired and not read_only:
                     os.chmod(path, 0o400)
                     sealed_fd = self._open_checked(path, os.O_RDONLY)
                     try:
