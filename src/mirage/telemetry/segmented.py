@@ -213,7 +213,7 @@ class SegmentedEvidenceStore:
                     or result.head_hash != segment.last_hash
                 ):
                     raise EvidenceIntegrityError("sealed segment metadata mismatch")
-            for record_number, (_, _, record_hash) in event_index.items():
+            for _, (record_number, _, record_hash) in event_index.items():
                 hashes_by_number[record_number] = record_hash
             previous_hash = result.head_hash
             total = segment.first_record_number - 1 + result.record_count
@@ -223,6 +223,10 @@ class SegmentedEvidenceStore:
             checkpoint = self.anchor.read()
         except Exception as exc:
             raise CheckpointError("could not read external checkpoint") from exc
+        if checkpoint is None and any(not segment.opened for segment in segments):
+            raise CheckpointError(
+                "sealed evidence exists without an external checkpoint"
+            )
         if checkpoint is not None:
             if checkpoint.record_count > total:
                 raise CheckpointError(
