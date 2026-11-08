@@ -76,6 +76,9 @@ class SegmentedEvidenceStore:
         self.anchor = anchor
         self.verify_sealed_on_append = verify_sealed_on_append
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        directory_info = self.directory.lstat()
+        if not stat.S_ISDIR(directory_info.st_mode):
+            raise EvidenceStoreError("evidence path must be a real directory")
         os.chmod(self.directory, 0o700)
         self.manifest_path = self.directory / _MANIFEST
         self._initialize()
@@ -500,7 +503,7 @@ class SegmentedEvidenceStore:
                 os.fsync(fd)
                 os.close(fd)
                 self._fsync_directory()
-            data = path.read_bytes()
+            data = self._read_segment(path, segment)
             if sealed:
                 actual_hash = hashlib.sha256(data).hexdigest()
                 if len(data) != segment.file_size or not hmac.compare_digest(
