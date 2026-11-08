@@ -217,11 +217,11 @@ def create_checkpoint_server(
     if not 0 <= port <= 65535:
         raise ValueError("checkpoint service port is outside the valid range")
     if (
-        not bearer_token
+        len(bearer_token) < 32
         or bearer_token.strip() != bearer_token
         or any(ord(char) < 0x21 or ord(char) == 0x7F for char in bearer_token)
     ):
-        raise ValueError("checkpoint bearer token must be non-empty and contain no whitespace")
+        raise ValueError("checkpoint bearer token must be at least 32 characters and contain no whitespace")
     if (
         not resource_path.startswith("/")
         or "?" in resource_path
