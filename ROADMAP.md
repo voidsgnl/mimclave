@@ -142,7 +142,8 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Add non-destructive legacy single-file migration API; CI run #227 passed 119 tests and Ruff on Python 3.12–3.14.
 - [x] Add crash-injection tests for initialization, fsync/acknowledgement, partial writes, rotation successor durability, and migration publication; add checkpoint-prefix edge-case tests. CI run #238 passed 130 tests and Ruff on Python 3.12–3.14.
 - [ ] Extend crash injection to exhaustive syscall/filesystem-boundary coverage and add further cross-segment checkpoint edge cases.
-- [ ] Collect target-Linux benchmark measurements before choosing operational segment limits.
+- [x] Extend the benchmark harness to compare legacy JSONL and segmented append/verification and exercise rotation in CI (run #245).
+- [ ] Collect repeatable target-Linux benchmark measurements before choosing operational segment limits; CI timing is not a performance baseline.
 - [ ] Deploy or integrate an independently administered checkpoint service implementing the documented durable compare-and-set API; client code alone does not create an independent anchor.
 
 ## Resume here — exact next steps
@@ -222,3 +223,6 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 
 - 2026-11-09: Expanded segmented-evidence fault-injection and checkpoint tests. Covered manifest fsync before initial segment creation, initialization after segment fsync, successor-file fsync before directory fsync, append fsync before receipt delivery (idempotent retry), partial record writes (fail closed without truncation), and migration failure before publication/after rename. Added checkpoint tests for a valid active-segment prefix, a checkpoint ahead of local evidence, and a checkpoint inside a retired segment. GitHub Actions run #238 passed **130 tests, the evidence benchmark smoke test, and Ruff on Python 3.12, 3.13, and 3.14**. Exhaustive syscall-boundary testing, target-Linux benchmarks, and hosted checkpoint deployment remain outstanding.
+
+
+- 2026-11-09: Extended the evidence benchmark to compare legacy JSONL and segmented append/verification, reporting storage bytes and segment count. Added configurable segment sizing and changed the CI smoke test to force automatic rotation. The benchmark's in-memory checkpoint double excludes remote anchor latency. GitHub Actions run #245 passed tests, benchmark smoke, and Ruff on Python 3.12–3.14. Representative target-Linux measurements remain outstanding.
