@@ -221,7 +221,7 @@ class SegmentedEvidenceStore:
             target = next((item for item in segments if not item.retired), None)
             if target is None or target.opened:
                 raise EvidenceStoreError("oldest retained segment is not sealed")
-            source = self._read_segment(self.directory / target.file_name, target)
+            self._read_segment(self.directory / target.file_name, target)
             try:
                 export_fd = os.open(export, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
             except OSError as exc:
@@ -569,7 +569,9 @@ class SegmentedEvidenceStore:
                 os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
                 0o600,
             )
-            os.fsync(fd); os.close(fd); self._fsync_directory()
+            os.fsync(fd)
+            os.close(fd)
+            self._fsync_directory()
             self._append_manifest(manifest_fd, None, {
                 "type": "segment_opened", "segment_id": next_id, "file_name": name,
                 "first_record_number": last.last_record_number + 1,
