@@ -177,6 +177,82 @@ class SegmentedEvidenceStore:
                 next_number = total + 1
             return StoreVerification(total, previous_hash)
 
+    def retire_oldest_segment(
+        self, export_path: str | Path, *, approval_id: str
+    ) -> None:
+        """Retire the oldest sealed segment after export and checkpoint checks.
+
+        The export must be outside the evidence directory and byte-for-byte
+        match the sealed segment. Retirement is operator initiated and never
+        scheduled automatically.
+        """
+        if not approval_id.strip():
+            raise ValueError("approval_id must not be empty")
+        export = Path(export_path)
+        try:
+            if export.resolve().is_relative_to(self.directory.resolve()):
+                raise EvidenceStoreError("evidence export must be outside the evidence directory")
+        except OSError as exc:
+            raise EvidenceStoreError("cannot resolve evidence export path") from exc
+
+        with self._locked(exclusive=True) as manifest_fd:
+            entries, _ = self._read_manifest(manifest_fd)
+            segments = self._reconcile(entries, manifest_fd, None)
+            target = next((item for item in segments if not item.retired), None)
+            if target is None or target.opened:
+                raise EvidenceStoreError("oldest retained segment is not sealed")
+            source = self._read_segment(self.directory / target.file_name, target)
+            try:
+                export_fd = os.open(export, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            except OSError as exc:
+                raise EvidenceStoreError("cannot open verified segment export") from exc
+            try:
+                info = os.fstat(export_fd)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) & 0o077:
+                    raise EvidenceStoreError("segment export must be a private regular file")
+                chunks = []
+                while chunk := os.read(export_fd, 1024 * 1024):
+                    chunks.append(chunk)
+                exported = b"".join(chunks)
+            finally:
+                os.close(export_fd)
+            export_hash = hashlib.sha256(exported).hexdigest()
+            if not hmac.compare_digest(export_hash, target.file_sha256):
+                raise EvidenceIntegrityError("export does not match the sealed segment")
+            self._scan_segment(
+                exported, target.first_record_number - 1, target.start_previous_hash
+            )
+
+            checkpoint = self.anchor.read()
+            if checkpoint is None:
+                raise CheckpointError("external checkpoint has not been initialized")
+            if checkpoint.generation < target.checkpoint_generation:
+                raise CheckpointError("external checkpoint predates the segment seal")
+            # Checkpoints are published at segment boundaries. Require the
+            # current anchor to match a retained or retired boundary exactly.
+            boundaries = [
+                item for item in segments
+                if not item.opened and item.last_record_number == checkpoint.record_count
+            ]
+            if not boundaries or not hmac.compare_digest(
+                boundaries[-1].last_hash, checkpoint.head_hash
+            ):
+                raise CheckpointError("latest checkpoint does not match a verified segment boundary")
+
+            retirement = {
+                "type": "segment_retired",
+                "segment_id": target.segment_id,
+                "retired_at": datetime.now(UTC).isoformat(),
+                "last_record_number": target.last_record_number,
+                "last_hash": target.last_hash,
+                "export_sha256": export_hash,
+                "checkpoint_generation": checkpoint.generation,
+                "approval_id": approval_id,
+            }
+            self._append_manifest(manifest_fd, None, retirement)
+            (self.directory / target.file_name).unlink()
+            self._fsync_directory()
+
     def rotate(self) -> None:
         with self._locked(exclusive=True) as manifest_fd:
             entries, manifest_head = self._read_manifest(manifest_fd)
