@@ -164,3 +164,17 @@ def test_sealed_segments_require_an_external_checkpoint(tmp_path):
 
     with pytest.raises(CheckpointError, match="without an external checkpoint"):
         store.verify_all()
+
+
+
+def test_soft_limit_triggers_automatic_rotation(tmp_path):
+    store, anchor = make_store(tmp_path, soft=1, hard=4096)
+    receipt = store.append(make_event(1))
+
+    first_segment = store.directory / "segment-00000001.jsonl"
+    second_segment = store.directory / "segment-00000002.jsonl"
+    assert receipt.record_number == 1
+    assert first_segment.stat().st_mode & 0o777 == 0o400
+    assert second_segment.exists()
+    assert anchor.checkpoint.record_count == 1
+    assert store.verify_all().record_count == 1
