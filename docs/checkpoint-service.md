@@ -31,6 +31,7 @@ Install MIRAGE on the checkpoint host, then create a private service directory
 and a high-entropy token:
 
 ```bash
+sudo useradd --system --home-dir /var/lib/mirage-checkpoint --create-home --shell /usr/sbin/nologin mirage-checkpoint
 sudo install -d -m 0700 -o mirage-checkpoint -g mirage-checkpoint /var/lib/mirage-checkpoint
 openssl rand -hex 32
 ```
@@ -56,21 +57,25 @@ sudo chmod 0600 /etc/mirage-checkpoint.env
 The service requires a bearer token of at least 32 characters. Do not commit the
 token, place it in command-line arguments, or reuse it for unrelated services.
 
-Start it with:
+Install the supplied systemd unit. If MIRAGE is installed in a virtual
+environment, edit `ExecStart` in the unit to point to that environment's
+`mirage-checkpoint-server` executable:
 
 ```bash
-sudo -u mirage-checkpoint env $(cat /etc/mirage-checkpoint.env | xargs) mirage-checkpoint-server
+sudo install -m 0644 deploy/mirage-checkpoint.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mirage-checkpoint.service
+sudo systemctl status mirage-checkpoint.service
 ```
 
-For production, run it under a dedicated systemd unit with
-`EnvironmentFile=/etc/mirage-checkpoint.env`, a dedicated unprivileged account,
-and filesystem restrictions. Do not use the one-line command as a substitute
-for service supervision.
+The unit runs as the dedicated unprivileged account, uses a restrictive umask,
+and applies systemd filesystem and privilege protections. Keep the
+`EnvironmentFile` owned by root with mode `0600`.
 
 ## Put HTTPS in front of the loopback listener
 
-Use a TLS-terminating reverse proxy on the checkpoint host. For Caddy, a
-minimal site configuration is:
+Use a TLS-terminating reverse proxy on the checkpoint host. For Caddy, copy the supplied example to the Caddy configuration location and
+replace the example hostname with the checkpoint host's DNS name:
 
 ```caddyfile
 anchor.example.net {
