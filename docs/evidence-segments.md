@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit legacy-log migration API are implemented in `src/mirage/telemetry/segmented.py`. Migration verifies the source, anchors its complete head, copies the original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and atomically publishes the destination. The source file is never moved or deleted. GitHub Actions run #227 passed 119 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. Exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
+**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit, non-destructive legacy-log migration API are implemented in `src/mirage/telemetry/segmented.py`. Migration verifies and externally anchors the complete source head, copies original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and atomically publishes the destination. The source is never moved or deleted. GitHub Actions run #238 passed 130 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. Targeted crash tests now cover initialization, durable append acknowledgement, partial writes, rotation, retirement, and migration publication; exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
 
 ## Problem
 
@@ -92,7 +92,7 @@ Rotation is triggered under the exclusive lock when the active segment reaches a
 2. Publish an external checkpoint for the current head via the existing `publish_checkpoint` logic. The checkpoint's `record_count` and `head_hash` must equal the segment's final record number and hash. **If publication fails, the segment is not sealed.**
 3. Append `segment_sealed` (including `file_size`, `file_sha256`, and the checkpoint generation) to the manifest and `fsync`.
 4. `chmod` the segment to `0400` and `fsync` it and the directory.
-5. Create the next segment file empty (`O_EXCL`, `0600`), `fsync` the directory, then append `segment_opened` to the manifest and `fsync`.
+5. Append the `segment_opened` successor intent to the manifest and `fsync`; then create the empty next segment (`O_EXCL`, `0600`), `fsync` the file, and `fsync` the directory.
 
 Every sealed segment boundary is therefore anchored externally at the moment it is sealed.
 
@@ -202,18 +202,7 @@ record hashes and global numbering, private segment files, anchored sealing,
 external-checkpoint prefix verification, hard-limit refusal, recovery of an
 opened-but-missing active segment and of a sealed segment whose successor has
 not yet been opened, plus operator-approved oldest-first retirement. Targeted
-crash-injection tests exercise interruption before/after checkpointed sealing,
-after the seal manifest is committed, before/after successor creation, and
-before/after retirement unlink. CI run #216 passed 116 tests and Ruff on
-Python 3.12–3.14. Additional integrity tests cover edited manifest entries,
-incomplete manifest tails, missing sealed segments, unmanifested segment
-files, and checkpoint verification after retirement of an older segment. During a
-checkpoint-service outage, appends may continue below the hard limit; rotation
-is retried after each append. Once the hard limit would be exceeded, append
-fails closed. Integrity mismatches are never treated as temporary outages. It does not yet provide a legacy-log migration
-command, a CLI, exhaustive crash injection at every filesystem boundary,
-exhaustive manifest-tampering coverage, or target-hardware benchmark results. These remain
-release-readiness work.
+crash-injection coverage now also exercises manifest fsync before initial segment creation, initialization after segment fsync but before directory fsync, rotation after successor-file fsync but before directory fsync, and migration failures immediately before publication and after rename but before parent-directory fsync. An append interrupted after its record fsync but before receipt delivery is retried idempotently. A partial record write is deliberately not truncated or silently repaired: reopening fails closed with an incomplete-record integrity error. Checkpoint tests cover a valid prefix inside the active segment, a checkpoint ahead of local evidence, and a checkpoint that points inside a retired segment. GitHub Actions run #238 passed 130 tests, the benchmark smoke test, and Ruff on Python 3.12–3.14. During a checkpoint-service outage, appends may continue below the hard limit; rotation is retried after each append. Once the hard limit would be exceeded, append fails closed. Integrity mismatches are never treated as temporary outages. A dedicated migration CLI, exhaustive syscall/filesystem-boundary crash coverage, and target-hardware benchmark results remain outstanding.
 
 
 ## Legacy migration API
