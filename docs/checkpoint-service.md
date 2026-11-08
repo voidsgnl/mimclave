@@ -15,6 +15,7 @@ access must remain outside the evidence host's trust boundary.
 - Strong ETags and atomic compare-and-set updates.
 - Strictly increasing checkpoint generations and record counts.
 - SQLite transactions using `BEGIN IMMEDIATE` and `synchronous=FULL`.
+- An append-only, hash-chained `checkpoint_history` table; update/delete triggers reject ordinary mutation, and every read/write verifies the history chain and current-row consistency.
 - A private database directory (`0700`) and database file (`0600`).
 - A loopback-only HTTP listener; it does not expose a public plaintext listener.
 - No endpoint for deleting or resetting checkpoint history.
@@ -122,9 +123,11 @@ the bearer token as an argument or prints it.
 - Monitor disk space, service availability, TLS certificate renewal, and failed
   conditional writes.
 - Rotate the bearer token through a planned coordinated change on both hosts.
-- The service stores only the latest checkpoint, not a full append-only
-  checkpoint history. A separately administered append-only history and
-  independent backup are future hardening work.
+- The service keeps an append-only, hash-chained history in SQLite, but the
+  history is still on the checkpoint host's storage. Export or back it up
+  independently so a privileged attacker on that host cannot silently rewrite
+  both the database and its history.
 - The service has not been deployed or independently audited. CI tests verify
-  its API contract and local persistence; they do not prove host independence,
-  backup correctness, operational security, or production readiness.
+  its API contract, conditional-write serialization, history integrity, and
+  local persistence; they do not prove host independence, backup correctness,
+  operational security, or production readiness.
