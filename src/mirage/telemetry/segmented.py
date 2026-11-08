@@ -67,7 +67,9 @@ class SegmentedEvidenceStore:
         verify_sealed_on_append: bool = True,
     ) -> None:
         if max_segment_bytes <= 0 or hard_max_segment_bytes <= max_segment_bytes:
-            raise ValueError("hard_max_segment_bytes must be greater than positive max_segment_bytes")
+            raise ValueError(
+                "hard_max_segment_bytes must exceed positive max_segment_bytes"
+            )
         self.directory = Path(directory)
         self.max_segment_bytes = max_segment_bytes
         self.hard_max_segment_bytes = hard_max_segment_bytes
@@ -117,7 +119,9 @@ class SegmentedEvidenceStore:
             if existing:
                 number, old_payload, record_hash = existing
                 if old_payload != payload:
-                    raise EvidenceEventConflictError("event_id already exists with a different payload")
+                    raise EvidenceEventConflictError(
+                        "event_id already exists with a different payload"
+                    )
                 return EvidenceReceipt(number, event.event_id, record_hash)
 
             unsigned = {
@@ -130,7 +134,9 @@ class SegmentedEvidenceStore:
             if len(line) > MAX_RECORD_BYTES:
                 raise EvidenceStoreError("serialized evidence record exceeds size limit")
             if data and len(data) + len(line) > self.hard_max_segment_bytes:
-                raise EvidenceStoreError("evidence segment hard limit reached; refusing unrecorded event")
+                raise EvidenceStoreError(
+                    "evidence segment hard limit reached; refusing unrecorded event"
+                )
             if not data and len(line) > self.hard_max_segment_bytes:
                 raise EvidenceStoreError("event exceeds evidence segment hard limit")
             fd = self._open_checked(path, os.O_WRONLY | os.O_APPEND)
@@ -165,8 +171,13 @@ class SegmentedEvidenceStore:
                     next_number = segment.last_record_number + 1
                     continue
                 data = self._read_segment(self.directory / segment.file_name, segment)
-                result, _ = self._scan_segment(data, segment.first_record_number - 1, segment.start_previous_hash)
-                if result.record_count != segment.last_record_number - segment.first_record_number + 1 and not segment.opened:
+                result, _ = self._scan_segment(
+                    data, segment.first_record_number - 1, segment.start_previous_hash
+                )
+                expected_count = (
+                    segment.last_record_number - segment.first_record_number + 1
+                )
+                if result.record_count != expected_count and not segment.opened:
                     raise EvidenceIntegrityError("sealed segment record count mismatch")
                 if segment.start_previous_hash != previous_hash:
                     raise EvidenceIntegrityError("cross-segment hash link mismatch")
@@ -208,7 +219,11 @@ class SegmentedEvidenceStore:
                 raise EvidenceStoreError("cannot open verified segment export") from exc
             try:
                 info = os.fstat(export_fd)
-                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) & 0o077:
+                if (
+                    not stat.S_ISREG(info.st_mode)
+                    or info.st_nlink != 1
+                    or stat.S_IMODE(info.st_mode) & 0o077
+                ):
                     raise EvidenceStoreError("segment export must be a private regular file")
                 chunks = []
                 while chunk := os.read(export_fd, 1024 * 1024):
@@ -237,7 +252,9 @@ class SegmentedEvidenceStore:
             if not boundaries or not hmac.compare_digest(
                 boundaries[-1].last_hash, checkpoint.head_hash
             ):
-                raise CheckpointError("latest checkpoint does not match a verified segment boundary")
+                raise CheckpointError(
+                    "latest checkpoint does not match a verified segment boundary"
+                )
 
             retirement = {
                 "type": "segment_retired",
@@ -262,11 +279,19 @@ class SegmentedEvidenceStore:
                 raise EvidenceIntegrityError("manifest has no active segment")
             self._rotate_locked(entries, segments, manifest_fd, manifest_head)
 
-    def _rotate_locked(self, entries: list[dict[str, Any]], segments: list[_Segment], manifest_fd: int, manifest_head: str | None) -> None:
+    def _rotate_locked(
+        self,
+        entries: list[dict[str, Any]],
+        segments: list[_Segment],
+        manifest_fd: int,
+        manifest_head: str | None,
+    ) -> None:
         active = segments[-1]
         path = self.directory / active.file_name
         data = self._read_segment(path, active)
-        result, _ = self._scan_segment(data, active.first_record_number - 1, active.start_previous_hash)
+        result, _ = self._scan_segment(
+            data, active.first_record_number - 1, active.start_previous_hash
+        )
         if result.record_count == 0:
             raise EvidenceStoreError("cannot rotate an empty evidence segment")
         global_result = StoreVerification(
@@ -296,7 +321,11 @@ class SegmentedEvidenceStore:
         next_id = active.segment_id + 1
         next_name = f"segment-{next_id:08d}.jsonl"
         next_path = self.directory / next_name
-        next_fd = os.open(next_path, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        next_fd = os.open(
+            next_path,
+            os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
         os.fsync(next_fd)
         os.close(next_fd)
         self._fsync_directory()
@@ -317,7 +346,9 @@ class SegmentedEvidenceStore:
         if current is not None:
             if current.record_count > result.record_count:
                 raise CheckpointError("external checkpoint is ahead of local evidence")
-            if current.record_count == result.record_count and not hmac.compare_digest(current.head_hash, result.head_hash):
+            if current.record_count == result.record_count and not hmac.compare_digest(
+                current.head_hash, result.head_hash
+            ):
                 raise CheckpointError("external checkpoint does not match local evidence")
         from mirage.telemetry.checkpoints import EvidenceCheckpoint
         checkpoint = EvidenceCheckpoint(generation, result.record_count, result.head_hash)
@@ -342,7 +373,11 @@ class SegmentedEvidenceStore:
                 "start_previous_hash": GENESIS_HASH, "opened_at": datetime.now(UTC).isoformat(),
             })
             path = self.directory / "segment-00000001.jsonl"
-            seg_fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            seg_fd = os.open(
+                path,
+                os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
             os.fsync(seg_fd)
             os.close(seg_fd)
             self._fsync_directory()
@@ -361,13 +396,21 @@ class SegmentedEvidenceStore:
                 envelope = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
             except (json.JSONDecodeError, EvidenceIntegrityError) as exc:
                 raise EvidenceIntegrityError(f"invalid manifest entry {number}") from exc
-            if not isinstance(envelope, dict) or set(envelope) != {"schema_version", "previous_manifest_hash", "entry", "entry_hash"}:
+            expected_keys = {
+                "schema_version", "previous_manifest_hash", "entry", "entry_hash"
+            }
+            if not isinstance(envelope, dict) or set(envelope) != expected_keys:
                 raise EvidenceIntegrityError(f"invalid manifest envelope at entry {number}")
             if envelope["schema_version"] != 1 or envelope["previous_manifest_hash"] != previous:
                 raise EvidenceIntegrityError(f"manifest chain mismatch at entry {number}")
-            unsigned = {k: envelope[k] for k in ("schema_version", "previous_manifest_hash", "entry")}
+            unsigned = {
+                key: envelope[key]
+                for key in ("schema_version", "previous_manifest_hash", "entry")
+            }
             expected = hashlib.sha256(_canonical_json(unsigned)).hexdigest()
-            if not isinstance(envelope["entry_hash"], str) or not hmac.compare_digest(expected, envelope["entry_hash"]):
+            if not isinstance(envelope["entry_hash"], str) or not hmac.compare_digest(
+                expected, envelope["entry_hash"]
+            ):
                 raise EvidenceIntegrityError(f"manifest hash mismatch at entry {number}")
             if not isinstance(envelope["entry"], dict):
                 raise EvidenceIntegrityError(f"invalid manifest payload at entry {number}")
@@ -387,7 +430,14 @@ class SegmentedEvidenceStore:
         os.fsync(fd)
         return digest
 
-    def _reconcile(self, entries: list[dict[str, Any]], manifest_fd: int, manifest_head: str | None, *, read_only: bool = False) -> list[_Segment]:
+    def _reconcile(
+        self,
+        entries: list[dict[str, Any]],
+        manifest_fd: int,
+        manifest_head: str | None,
+        *,
+        read_only: bool = False,
+    ) -> list[_Segment]:
         states: dict[int, dict[str, Any]] = {}
         for entry in entries:
             kind = entry.get("type")
@@ -421,7 +471,8 @@ class SegmentedEvidenceStore:
             segment = _Segment(
                 sid, state["file_name"], state["first_record_number"],
                 state["start_previous_hash"], not bool(sealed), sealed.get("record_count", 0),
-                sealed.get("last_record_number", 0), sealed.get("last_hash", state["start_previous_hash"]),
+                sealed.get("last_record_number", 0),
+                sealed.get("last_hash", state["start_previous_hash"]),
                 sealed.get("file_size", 0), sealed.get("file_sha256", ""),
                 sealed.get("checkpoint_generation", 0), retired,
                 state.get("retired", {}).get("export_sha256", ""),
@@ -433,13 +484,20 @@ class SegmentedEvidenceStore:
             if not path.exists():
                 if sealed or read_only:
                     raise EvidenceIntegrityError("manifest segment file is missing")
-                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                fd = os.open(
+                    path,
+                    os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                )
                 os.fsync(fd)
                 os.close(fd)
                 self._fsync_directory()
             data = path.read_bytes()
             if sealed:
-                if len(data) != segment.file_size or not hmac.compare_digest(hashlib.sha256(data).hexdigest(), segment.file_sha256):
+                actual_hash = hashlib.sha256(data).hexdigest()
+                if len(data) != segment.file_size or not hmac.compare_digest(
+                    actual_hash, segment.file_sha256
+                ):
                     raise EvidenceIntegrityError("sealed segment size or digest mismatch")
                 if not retired and not read_only:
                     os.chmod(path, 0o400)
@@ -449,9 +507,15 @@ class SegmentedEvidenceStore:
                     finally:
                         os.close(sealed_fd)
             elif data and not read_only:
-                self._scan_segment(data, segment.first_record_number - 1, segment.start_previous_hash)
+                self._scan_segment(
+                    data, segment.first_record_number - 1, segment.start_previous_hash
+                )
             segments.append(segment)
-        expected_files = {s.file_name for s in segments if not s.retired or (self.directory / s.file_name).exists()}
+        expected_files = {
+            segment.file_name
+            for segment in segments
+            if not segment.retired or (self.directory / segment.file_name).exists()
+        }
         for path in self.directory.iterdir():
             if _SEGMENT_RE.match(path.name) and path.name not in expected_files:
                 raise EvidenceIntegrityError("unmanifested segment file exists")
@@ -460,7 +524,11 @@ class SegmentedEvidenceStore:
             last = segments[-1]
             next_id = last.segment_id + 1
             name = f"segment-{next_id:08d}.jsonl"
-            fd = os.open(self.directory / name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            fd = os.open(
+                self.directory / name,
+                os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
             os.fsync(fd); os.close(fd); self._fsync_directory()
             self._append_manifest(manifest_fd, None, {
                 "type": "segment_opened", "segment_id": next_id, "file_name": name,
@@ -479,8 +547,14 @@ class SegmentedEvidenceStore:
                 next_number = segment.last_record_number + 1
                 continue
             data = self._read_segment(self.directory / segment.file_name, segment)
-            result, _ = self._scan_segment(data, segment.first_record_number - 1, segment.start_previous_hash)
-            if result.head_hash != segment.last_hash or segment.start_previous_hash != previous or segment.first_record_number != next_number:
+            result, _ = self._scan_segment(
+                data, segment.first_record_number - 1, segment.start_previous_hash
+            )
+            if (
+                result.head_hash != segment.last_hash
+                or segment.start_previous_hash != previous
+                or segment.first_record_number != next_number
+            ):
                 raise EvidenceIntegrityError("sealed segment chain verification failed")
             previous = result.head_hash
             next_number = segment.last_record_number + 1
@@ -512,19 +586,31 @@ class SegmentedEvidenceStore:
                 envelope = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
             except (json.JSONDecodeError, EvidenceIntegrityError) as exc:
                 raise EvidenceIntegrityError(f"invalid segment record {line_number}") from exc
-            if not isinstance(envelope, dict) or set(envelope) != {"schema_version", "previous_hash", "event", "record_hash"}:
+            expected_keys = {
+                "schema_version", "previous_hash", "event", "record_hash"
+            }
+            if not isinstance(envelope, dict) or set(envelope) != expected_keys:
                 raise EvidenceIntegrityError("invalid segment record envelope")
-            if envelope["schema_version"] != SCHEMA_VERSION or envelope["previous_hash"] != previous:
+            if (
+                envelope["schema_version"] != SCHEMA_VERSION
+                or envelope["previous_hash"] != previous
+            ):
                 raise EvidenceIntegrityError("segment hash-chain link mismatch")
             event = envelope["event"]
-            if not isinstance(event, dict) or not isinstance(event.get("event_id"), str) or not event["event_id"].strip():
+            if (
+                not isinstance(event, dict)
+                or not isinstance(event.get("event_id"), str)
+                or not event["event_id"].strip()
+            ):
                 raise EvidenceIntegrityError("invalid segment event")
             event_id = event["event_id"]
             if event_id in index:
                 raise EvidenceIntegrityError("duplicate event ID in segment")
             unsigned = {k: envelope[k] for k in ("schema_version", "previous_hash", "event")}
             digest = hashlib.sha256(_canonical_json(unsigned)).hexdigest()
-            if not isinstance(envelope["record_hash"], str) or not hmac.compare_digest(digest, envelope["record_hash"]):
+            if not isinstance(envelope["record_hash"], str) or not hmac.compare_digest(
+                digest, envelope["record_hash"]
+            ):
                 raise EvidenceIntegrityError("segment record hash mismatch")
             previous = digest
             count += 1
@@ -535,7 +621,11 @@ class SegmentedEvidenceStore:
     def _open_checked(path: Path, flags: int) -> int:
         fd = os.open(path, flags | getattr(os, "O_NOFOLLOW", 0))
         info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) & 0o077:
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink != 1
+            or stat.S_IMODE(info.st_mode) & 0o077
+        ):
             os.close(fd)
             raise EvidenceStoreError("unsafe evidence file")
         return fd
@@ -558,7 +648,11 @@ class SegmentedEvidenceStore:
                 flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
                 inner.fd = os.open(inner.store.manifest_path, flags, 0o600)
                 info = os.fstat(inner.fd)
-                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) & 0o077:
+                if (
+                    not stat.S_ISREG(info.st_mode)
+                    or info.st_nlink != 1
+                    or stat.S_IMODE(info.st_mode) & 0o077
+                ):
                     os.close(inner.fd)
                     raise EvidenceStoreError("unsafe manifest file")
                 fcntl.flock(inner.fd, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
