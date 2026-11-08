@@ -1,0 +1,33 @@
+[Unit]
+Description=MIRAGE independent evidence checkpoint service
+After=network.target
+
+[Service]
+Type=simple
+User=mirage-checkpoint
+Group=mirage-checkpoint
+EnvironmentFile=/etc/mirage-checkpoint.env
+ExecStart=/usr/local/bin/mirage-checkpoint-server
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/mirage-checkpoint
+
+[Install]
+WantedBy=multi-user.target
