@@ -538,8 +538,10 @@ class SegmentedEvidenceStore:
                     raise EvidenceIntegrityError("retired segments must form an oldest-first prefix")
             else:
                 retired_prefix_ended = True
-            if segment.opened != (index == len(segments) - 1):
+            if segment.opened and index != len(segments) - 1:
                 raise EvidenceIntegrityError("only the newest segment may be active")
+            if index == len(segments) - 1 and not segment.opened and read_only:
+                raise EvidenceIntegrityError("manifest has no active segment")
             if not segment.opened:
                 previous_number = segment.last_record_number
                 previous_hash = segment.last_hash
