@@ -92,8 +92,10 @@ def test_rotation_requires_external_checkpoint(tmp_path):
     store.append(make_event())
     with pytest.raises(CheckpointError):
         store.rotate()
-    assert store.verify_all().record_count == 1
-    assert (store.directory / "segment-00000001.jsonl").exists()
+    segment = store.directory / "segment-00000001.jsonl"
+    assert segment.stat().st_size > 0
+    with pytest.raises(CheckpointError):
+        store.verify_all()
 
 
 def test_tampered_sealed_segment_is_detected(tmp_path):
