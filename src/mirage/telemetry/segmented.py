@@ -12,6 +12,8 @@ import json
 import os
 import re
 import stat
+import shutil
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -86,6 +88,155 @@ class SegmentedEvidenceStore:
         os.chmod(self.directory, 0o700)
         self.manifest_path = self.directory / _MANIFEST
         self._initialize()
+
+    @classmethod
+    def migrate_legacy_log(
+        cls,
+        source_path: str | Path,
+        destination: str | Path,
+        *,
+        max_segment_bytes: int,
+        hard_max_segment_bytes: int,
+        anchor: CheckpointAnchor,
+        verify_sealed_on_append: bool = True,
+    ) -> "SegmentedEvidenceStore":
+        """Copy a verified legacy JSONL log into segmented storage.
+
+        The source is never modified. The original record envelopes and hashes
+        are copied byte-for-byte into segment 1, preserving the existing chain.
+        The external checkpoint is advanced to the verified source head before
+        the staged destination is published.
+        """
+        from mirage.telemetry.store import JsonlEvidenceStore
+
+        source = Path(source_path)
+        target = Path(destination)
+        if source.resolve() == target.resolve():
+            raise EvidenceStoreError("legacy source and destination must differ")
+        if target.exists():
+            raise EvidenceStoreError("migration destination already exists")
+        if max_segment_bytes <= 0 or hard_max_segment_bytes <= max_segment_bytes:
+            raise ValueError(
+                "hard_max_segment_bytes must exceed positive max_segment_bytes"
+            )
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        source_store = JsonlEvidenceStore(source)
+        source_verification = source_store.verify()
+        if source_verification.record_count == 0:
+            raise EvidenceStoreError("cannot migrate an empty legacy evidence log")
+
+        # This verifies any existing checkpoint prefix and monotonically anchors
+        # the complete source head. A mismatch aborts before destination creation.
+        checkpoint = source_store.publish_checkpoint(anchor)
+        if (
+            checkpoint.record_count != source_verification.record_count
+            or not hmac.compare_digest(
+                checkpoint.head_hash, source_verification.head_hash
+            )
+        ):
+            raise CheckpointError("legacy source head was not fully checkpointed")
+
+        staging = Path(tempfile.mkdtemp(
+            prefix=f".{target.name}.migration-", dir=target.parent
+        ))
+        try:
+            staged_store = cls(
+                staging,
+                max_segment_bytes=max_segment_bytes,
+                hard_max_segment_bytes=hard_max_segment_bytes,
+                anchor=anchor,
+                verify_sealed_on_append=verify_sealed_on_append,
+            )
+            temporary_export = staging / "legacy-import.tmp"
+            exported = source_store.export_verified(
+                temporary_export, anchor=anchor
+            )
+            if exported != source_verification:
+                raise EvidenceIntegrityError(
+                    "legacy source changed during migration export"
+                )
+
+            first_path = staging / "segment-00000001.jsonl"
+            os.replace(temporary_export, first_path)
+            os.chmod(first_path, 0o400)
+            first_fd = staged_store._open_checked(first_path, os.O_RDONLY)
+            try:
+                os.fsync(first_fd)
+            finally:
+                os.close(first_fd)
+            staged_store._fsync_directory()
+
+            data = staged_store._read_segment(
+                first_path,
+                _Segment(1, first_path.name, 1, GENESIS_HASH),
+            )
+            result, _ = staged_store._scan_segment(data, 0, GENESIS_HASH)
+            if result != source_verification:
+                raise EvidenceIntegrityError(
+                    "imported segment does not match the verified legacy source"
+                )
+
+            with staged_store._locked(exclusive=True) as manifest_fd:
+                entries, _ = staged_store._read_manifest(manifest_fd)
+                if len(entries) != 1 or entries[0].get("type") != "segment_opened":
+                    raise EvidenceIntegrityError(
+                        "staging manifest changed during legacy migration"
+                    )
+                staged_store._append_manifest(manifest_fd, None, {
+                    "type": "segment_sealed",
+                    "segment_id": 1,
+                    "record_count": result.record_count,
+                    "last_record_number": result.record_count,
+                    "last_hash": result.head_hash,
+                    "file_size": len(data),
+                    "file_sha256": hashlib.sha256(data).hexdigest(),
+                    "checkpoint_generation": checkpoint.generation,
+                    "sealed_at": datetime.now(UTC).isoformat(),
+                })
+                next_name = "segment-00000002.jsonl"
+                staged_store._append_manifest(manifest_fd, None, {
+                    "type": "segment_opened",
+                    "segment_id": 2,
+                    "file_name": next_name,
+                    "first_record_number": result.record_count + 1,
+                    "start_previous_hash": result.head_hash,
+                    "opened_at": datetime.now(UTC).isoformat(),
+                })
+                next_fd = os.open(
+                    staging / next_name,
+                    os.O_CREAT | os.O_EXCL | os.O_RDWR
+                    | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                )
+                try:
+                    os.fsync(next_fd)
+                finally:
+                    os.close(next_fd)
+                staged_store._fsync_directory()
+
+            staged_store.verify_all()
+            # Publish the complete, verified directory atomically. The legacy
+            # source remains untouched as the rollback copy.
+            os.rename(staging, target)
+            parent_fd = os.open(
+                target.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+            )
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
+        except Exception:
+            if staging.exists():
+                shutil.rmtree(staging)
+            raise
+
+        return cls(
+            target,
+            max_segment_bytes=max_segment_bytes,
+            hard_max_segment_bytes=hard_max_segment_bytes,
+            anchor=anchor,
+            verify_sealed_on_append=verify_sealed_on_append,
+        )
 
     def append(self, event: SessionEvent) -> EvidenceReceipt:
         with self._locked(exclusive=True) as manifest_fd:
