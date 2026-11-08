@@ -87,12 +87,32 @@ class SegmentedEvidenceStore:
                 raise EvidenceIntegrityError("manifest has no active segment")
             if self.verify_sealed_on_append:
                 self._verify_sealed(segments[:-1])
+            payload = _event_payload(event)
+            # Idempotency spans every retained segment, not just the active one.
+            for sealed_segment in segments[:-1]:
+                if sealed_segment.retired:
+                    continue
+                sealed_data = self._read_segment(
+                    self.directory / sealed_segment.file_name, sealed_segment
+                )
+                _, sealed_index = self._scan_segment(
+                    sealed_data,
+                    sealed_segment.first_record_number - 1,
+                    sealed_segment.start_previous_hash,
+                )
+                prior = sealed_index.get(event.event_id)
+                if prior:
+                    number, old_payload, record_hash = prior
+                    if old_payload != payload:
+                        raise EvidenceEventConflictError(
+                            "event_id already exists with a different payload"
+                        )
+                    return EvidenceReceipt(number, event.event_id, record_hash)
             path = self.directory / active.file_name
             data = self._read_segment(path, active)
             verification, index = self._scan_segment(
                 data, active.first_record_number - 1, active.start_previous_hash
             )
-            payload = _event_payload(event)
             existing = index.get(event.event_id)
             if existing:
                 number, old_payload, record_hash = existing
@@ -276,7 +296,7 @@ class SegmentedEvidenceStore:
     def _append_manifest(self, fd: int, previous: str | None, entry: dict[str, Any]) -> str:
         # Re-read after each append so a preceding step in the same locked
         # transaction is always reflected in the next link.
-        entries, head = self._read_manifest(fd) if os.fstat(fd).st_size else ([], GENESIS_HASH)
+        _, head = self._read_manifest(fd) if os.fstat(fd).st_size else ([], GENESIS_HASH)
         unsigned = {"schema_version": 1, "previous_manifest_hash": head, "entry": entry}
         digest = hashlib.sha256(_canonical_json(unsigned)).hexdigest()
         line = _canonical_json({**unsigned, "entry_hash": digest}) + b"\n"
@@ -339,6 +359,13 @@ class SegmentedEvidenceStore:
             if sealed:
                 if len(data) != segment.file_size or not hmac.compare_digest(hashlib.sha256(data).hexdigest(), segment.file_sha256):
                     raise EvidenceIntegrityError("sealed segment size or digest mismatch")
+                if not retired:
+                    os.chmod(path, 0o400)
+                    sealed_fd = self._open_checked(path, os.O_RDONLY)
+                    try:
+                        os.fsync(sealed_fd)
+                    finally:
+                        os.close(sealed_fd)
             elif data and not read_only:
                 self._scan_segment(data, segment.first_record_number - 1, segment.start_previous_hash)
             segments.append(segment)
