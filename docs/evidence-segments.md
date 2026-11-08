@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** Design decisions plus an initial CI-verified implementation. The legacy `JsonlEvidenceStore` remains unchanged; the separate `SegmentedEvidenceStore` is implemented in `src/mirage/telemetry/segmented.py`. GitHub Actions run #208 passed 105 tests and Ruff on Python 3.12–3.14. Exhaustive crash-injection/tamper coverage, migration tooling, and target-hardware benchmarking remain outstanding.
+**Status:** Design decisions plus an initial CI-verified implementation. The legacy `JsonlEvidenceStore` remains unchanged; the separate `SegmentedEvidenceStore` is implemented in `src/mirage/telemetry/segmented.py`. GitHub Actions run #212 passed 111 tests and Ruff on Python 3.12–3.14. Six injected crash-boundary tests cover checkpoint publication, segment sealing, successor creation, and retirement. Exhaustive filesystem-boundary coverage, manifest-tampering tests, migration tooling, and target-hardware benchmarking remain outstanding.
 
 ## Problem
 
@@ -201,9 +201,14 @@ The first implementation includes manifest hash verification, continuous
 record hashes and global numbering, private segment files, anchored sealing,
 external-checkpoint prefix verification, hard-limit refusal, recovery of an
 opened-but-missing active segment and of a sealed segment whose successor has
-not yet been opened, plus operator-approved oldest-first retirement. During a
+not yet been opened, plus operator-approved oldest-first retirement. Targeted
+crash-injection tests exercise interruption before/after checkpointed sealing,
+after the seal manifest is committed, before/after successor creation, and
+before/after retirement unlink. CI run #212 passed 111 tests and Ruff on
+Python 3.12–3.14. During a
 checkpoint-service outage, appends may continue below the hard limit; rotation
 is retried after each append. Once the hard limit would be exceeded, append
 fails closed. Integrity mismatches are never treated as temporary outages. It does not yet provide a legacy-log migration
-command, a CLI, exhaustive crash injection at every filesystem boundary, or
-target-hardware benchmark results. These remain release-readiness work.
+command, a CLI, exhaustive crash injection at every filesystem boundary,
+manifest-tampering coverage, or target-hardware benchmark results. These remain
+release-readiness work.
