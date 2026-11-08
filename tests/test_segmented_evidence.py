@@ -10,7 +10,10 @@ from mirage.telemetry.checkpoints import (
     EvidenceCheckpoint,
 )
 from mirage.telemetry.events import SessionEventFactory
-from mirage.telemetry.segmented import SegmentedEvidenceStore
+from mirage.telemetry.segmented import (
+    SegmentedEvidenceStore,
+    _rename_directory_noreplace,
+)
 from mirage.telemetry.store import (
     EvidenceIntegrityError, EvidenceStoreError, JsonlEvidenceStore
 )
@@ -690,7 +693,9 @@ def test_migration_failure_before_publish_keeps_source_and_no_destination(
     def interrupt_publish(*args, **kwargs):
         raise RuntimeError("simulated process crash before publish")
 
-    monkeypatch.setattr("mirage.telemetry.segmented.os.rename", interrupt_publish)
+    monkeypatch.setattr(
+        "mirage.telemetry.segmented._rename_directory_noreplace", interrupt_publish
+    )
     with pytest.raises(RuntimeError, match="before publish"):
         SegmentedEvidenceStore.migrate_legacy_log(
             source,
@@ -716,13 +721,13 @@ def test_migration_recovers_complete_destination_if_parent_fsync_fails(
     legacy.append(make_event(1))
     original_bytes = source.read_bytes()
     destination = tmp_path / "segmented"
-    original_rename = os.rename
+    original_publish = _rename_directory_noreplace
     original_fsync = os.fsync
     published = False
 
-    def track_publish(src, dst, *args, **kwargs):
+    def track_publish(src, dst):
         nonlocal published
-        result = original_rename(src, dst, *args, **kwargs)
+        result = original_publish(src, dst)
         if str(dst) == str(destination):
             published = True
         return result
@@ -732,7 +737,9 @@ def test_migration_recovers_complete_destination_if_parent_fsync_fails(
             raise RuntimeError("simulated process crash after publish")
         return original_fsync(fd)
 
-    monkeypatch.setattr("mirage.telemetry.segmented.os.rename", track_publish)
+    monkeypatch.setattr(
+        "mirage.telemetry.segmented._rename_directory_noreplace", track_publish
+    )
     monkeypatch.setattr("mirage.telemetry.segmented.os.fsync", interrupt_parent_sync)
     with pytest.raises(RuntimeError, match="after publish"):
         SegmentedEvidenceStore.migrate_legacy_log(
@@ -874,3 +881,63 @@ def test_checkpoint_inside_retired_segment_is_rejected(tmp_path):
     )
     with pytest.raises(CheckpointError, match="does not match its external checkpoint"):
         store.verify_all()
+
+
+
+def test_legacy_migration_rejects_source_larger_than_hard_limit(tmp_path):
+    anchor = MemoryAnchor()
+    source = tmp_path / "legacy-large.jsonl"
+    legacy = JsonlEvidenceStore(source)
+    for index in range(12):
+        legacy.append(make_event(index))
+    original_bytes = source.read_bytes()
+    assert len(original_bytes) > 1024
+
+    with pytest.raises(EvidenceStoreError, match="exceeds the configured hard"):
+        SegmentedEvidenceStore.migrate_legacy_log(
+            source,
+            tmp_path / "segmented",
+            max_segment_bytes=512,
+            hard_max_segment_bytes=1024,
+            anchor=anchor,
+        )
+
+    assert source.read_bytes() == original_bytes
+    assert anchor.checkpoint is None
+    assert not (tmp_path / "segmented").exists()
+
+
+def test_migration_publication_does_not_overwrite_racing_destination(
+    tmp_path, monkeypatch
+):
+    anchor = MemoryAnchor()
+    source = tmp_path / "legacy.jsonl"
+    legacy = JsonlEvidenceStore(source)
+    legacy.append(make_event(1))
+    original_bytes = source.read_bytes()
+    destination = tmp_path / "segmented"
+    original_publish = _rename_directory_noreplace
+
+    def create_destination_then_publish(staging, target):
+        target.mkdir()
+        marker = target / "keep.txt"
+        marker.write_text("existing destination", encoding="utf-8")
+        return original_publish(staging, target)
+
+    monkeypatch.setattr(
+        "mirage.telemetry.segmented._rename_directory_noreplace",
+        create_destination_then_publish,
+    )
+    with pytest.raises(EvidenceStoreError, match="destination already exists"):
+        SegmentedEvidenceStore.migrate_legacy_log(
+            source,
+            destination,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=anchor,
+        )
+
+    monkeypatch.undo()
+    assert source.read_bytes() == original_bytes
+    assert (destination / "keep.txt").read_text(encoding="utf-8") == "existing destination"
+    assert not list(tmp_path.glob(".segmented.migration-*"))
