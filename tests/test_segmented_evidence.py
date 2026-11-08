@@ -241,3 +241,23 @@ def test_append_with_sealed_segment_verification_disabled(tmp_path):
 
     assert receipt.record_number == 2
     assert store.verify_all().record_count == 2
+
+
+
+def test_reopen_recovers_opened_segment_with_missing_file(tmp_path):
+    store, anchor = make_store(tmp_path)
+    store.append(make_event(1))
+    store.rotate()
+    active_path = store.directory / "segment-00000002.jsonl"
+    active_path.unlink()
+
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+
+    assert active_path.exists()
+    assert active_path.stat().st_size == 0
+    assert reopened.verify_all().record_count == 1
