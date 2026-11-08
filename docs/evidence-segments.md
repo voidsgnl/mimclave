@@ -199,8 +199,11 @@ single-file API and its export/checkpoint behaviour remain available.
 
 The first implementation includes manifest hash verification, continuous
 record hashes and global numbering, private segment files, anchored sealing,
-hard-limit refusal, recovery of an opened-but-missing active segment and of a
-sealed segment whose successor has not yet been opened, plus operator-approved
-oldest-first retirement. It does not yet provide a legacy-log migration
+external-checkpoint prefix verification, hard-limit refusal, recovery of an
+opened-but-missing active segment and of a sealed segment whose successor has
+not yet been opened, plus operator-approved oldest-first retirement. During a
+checkpoint-service outage, appends may continue below the hard limit; rotation
+is retried after each append. Once the hard limit would be exceeded, append
+fails closed. Integrity mismatches are never treated as temporary outages. It does not yet provide a legacy-log migration
 command, a CLI, automated crash injection at every filesystem boundary, or
 target-hardware benchmark results. These remain release-readiness work.
