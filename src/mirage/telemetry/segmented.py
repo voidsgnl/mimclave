@@ -397,14 +397,6 @@ class SegmentedEvidenceStore:
         next_id = active.segment_id + 1
         next_name = f"segment-{next_id:08d}.jsonl"
         next_path = self.directory / next_name
-        next_fd = os.open(
-            next_path,
-            os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-        os.fsync(next_fd)
-        os.close(next_fd)
-        self._fsync_directory()
         opened = {
             "type": "segment_opened",
             "segment_id": next_id,
@@ -413,7 +405,17 @@ class SegmentedEvidenceStore:
             "start_previous_hash": result.head_hash,
             "opened_at": datetime.now(UTC).isoformat(),
         }
+        # Record intent first. If the process crashes before file creation,
+        # manifest reconciliation safely creates the missing empty segment.
         self._append_manifest(manifest_fd, None, opened)
+        next_fd = os.open(
+            next_path,
+            os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        os.fsync(next_fd)
+        os.close(next_fd)
+        self._fsync_directory()
 
     def _publish_head(self, result: StoreVerification):
         # The anchor contract is the same monotonic CAS used by JsonlEvidenceStore.
@@ -646,6 +648,11 @@ class SegmentedEvidenceStore:
             last = segments[-1]
             next_id = last.segment_id + 1
             name = f"segment-{next_id:08d}.jsonl"
+            self._append_manifest(manifest_fd, None, {
+                "type": "segment_opened", "segment_id": next_id, "file_name": name,
+                "first_record_number": last.last_record_number + 1,
+                "start_previous_hash": last.last_hash, "opened_at": datetime.now(UTC).isoformat(),
+            })
             fd = os.open(
                 self.directory / name,
                 os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
@@ -654,11 +661,6 @@ class SegmentedEvidenceStore:
             os.fsync(fd)
             os.close(fd)
             self._fsync_directory()
-            self._append_manifest(manifest_fd, None, {
-                "type": "segment_opened", "segment_id": next_id, "file_name": name,
-                "first_record_number": last.last_record_number + 1,
-                "start_previous_hash": last.last_hash, "opened_at": datetime.now(UTC).isoformat(),
-            })
             return self._reconcile(self._read_manifest(manifest_fd)[0], manifest_fd, None)
         return segments
 
