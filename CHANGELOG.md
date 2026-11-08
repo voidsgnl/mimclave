@@ -5,6 +5,10 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- Added an initial `SegmentedEvidenceStore` alongside the unchanged legacy JSONL store, with a hash-chained manifest, continuous record chain, global record numbering, anchored segment sealing, crash recovery for interrupted opening/sealing transitions, and operator-approved oldest-first retirement.
+- Added segmented-store tests for rotation, cross-segment idempotency, checkpoint outage, sealed-segment tampering, and retirement preconditions. Additional crash-injection coverage and target-hardware benchmarks remain outstanding.
+
+### Added
 - Added an opt-in asyncio HTTP transport restricted to literal loopback IPs, with bounded request reads, timeouts, connection limits, structured event emission, and explicit shutdown.
 - Added transport integration tests for fragmented requests, malformed input, slow clients, connection limits, and shutdown; 57 tests pass in CI across Python 3.12–3.14.
 - CI verification for structured telemetry: 51 tests and Ruff passed on Python 3.12, 3.13, and 3.14.
