@@ -1,4 +1,5 @@
 import hashlib
+import os
 import shutil
 
 import pytest
@@ -558,3 +559,199 @@ def test_legacy_migration_rejects_checkpoint_conflict(tmp_path):
             anchor=anchor,
         )
     assert not (tmp_path / "segmented").exists()
+
+
+
+def test_initialization_recovers_manifest_before_segment_creation(tmp_path, monkeypatch):
+    directory = tmp_path / "evidence"
+    original_open = os.open
+
+    def interrupt_segment_create(path, *args, **kwargs):
+        if str(path).endswith("segment-00000001.jsonl"):
+            raise RuntimeError("simulated process crash")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr("mirage.telemetry.segmented.os.open", interrupt_segment_create)
+    with pytest.raises(RuntimeError, match="simulated"):
+        SegmentedEvidenceStore(
+            directory,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=MemoryAnchor(),
+        )
+
+    monkeypatch.undo()
+    assert (directory / "manifest.jsonl").exists()
+    assert not (directory / "segment-00000001.jsonl").exists()
+
+    reopened = SegmentedEvidenceStore(
+        directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=MemoryAnchor(),
+    )
+    assert (directory / "segment-00000001.jsonl").exists()
+    assert reopened.verify_all().record_count == 0
+
+
+def test_initialization_recovers_after_segment_fsync_before_directory_fsync(
+    tmp_path, monkeypatch
+):
+    directory = tmp_path / "evidence"
+    store = SegmentedEvidenceStore.__new__(SegmentedEvidenceStore)
+    original_sync = SegmentedEvidenceStore._fsync_directory
+    calls = 0
+
+    def interrupt_second_directory_sync(self):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("simulated process crash")
+        return original_sync(self)
+
+    monkeypatch.setattr(
+        SegmentedEvidenceStore, "_fsync_directory", interrupt_second_directory_sync
+    )
+    with pytest.raises(RuntimeError, match="simulated"):
+        SegmentedEvidenceStore(
+            directory,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=MemoryAnchor(),
+        )
+
+    monkeypatch.undo()
+    reopened = SegmentedEvidenceStore(
+        directory,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=MemoryAnchor(),
+    )
+    assert reopened.verify_all().record_count == 0
+
+
+def test_append_retry_is_idempotent_after_write_before_fsync_failure(
+    tmp_path, monkeypatch
+):
+    store, anchor = make_store(tmp_path, soft=4096)
+    event = make_event(1)
+    original_write = store._write_all
+
+    def interrupt_after_complete_write(fd, data):
+        original_write(fd, data)
+        raise RuntimeError("simulated process crash before fsync")
+
+    monkeypatch.setattr(store, "_write_all", interrupt_after_complete_write)
+    with pytest.raises(RuntimeError, match="before fsync"):
+        store.append(event)
+
+    monkeypatch.undo()
+    reopened = SegmentedEvidenceStore(
+        store.directory,
+        max_segment_bytes=4096,
+        hard_max_segment_bytes=8192,
+        anchor=anchor,
+    )
+    receipt = reopened.append(event)
+    assert receipt.record_number == 1
+    assert reopened.verify_all().record_count == 1
+
+
+def test_partial_append_fails_closed_after_restart(tmp_path, monkeypatch):
+    store, anchor = make_store(tmp_path, soft=4096)
+    original_write = store._write_all
+
+    def interrupt_during_write(fd, data):
+        os.write(fd, data[: max(1, len(data) // 2)])
+        raise RuntimeError("simulated process crash during write")
+
+    monkeypatch.setattr(store, "_write_all", interrupt_during_write)
+    with pytest.raises(RuntimeError, match="during write"):
+        store.append(make_event(1))
+
+    monkeypatch.undo()
+    with pytest.raises(EvidenceIntegrityError, match="incomplete trailing record"):
+        SegmentedEvidenceStore(
+            store.directory,
+            max_segment_bytes=4096,
+            hard_max_segment_bytes=8192,
+            anchor=anchor,
+        )
+
+
+def test_migration_failure_before_publish_keeps_source_and_no_destination(
+    tmp_path, monkeypatch
+):
+    anchor = MemoryAnchor()
+    source = tmp_path / "legacy.jsonl"
+    legacy = JsonlEvidenceStore(source)
+    legacy.append(make_event(1))
+    original_bytes = source.read_bytes()
+    destination = tmp_path / "segmented"
+
+    def interrupt_publish(*args, **kwargs):
+        raise RuntimeError("simulated process crash before publish")
+
+    monkeypatch.setattr("mirage.telemetry.segmented.os.rename", interrupt_publish)
+    with pytest.raises(RuntimeError, match="before publish"):
+        SegmentedEvidenceStore.migrate_legacy_log(
+            source,
+            destination,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=anchor,
+        )
+
+    monkeypatch.undo()
+    assert source.read_bytes() == original_bytes
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".segmented.migration-*"))
+    assert anchor.checkpoint.record_count == 1
+
+
+def test_migration_recovers_complete_destination_if_parent_fsync_fails(
+    tmp_path, monkeypatch
+):
+    anchor = MemoryAnchor()
+    source = tmp_path / "legacy.jsonl"
+    legacy = JsonlEvidenceStore(source)
+    legacy.append(make_event(1))
+    original_bytes = source.read_bytes()
+    destination = tmp_path / "segmented"
+    original_rename = os.rename
+    original_fsync = os.fsync
+    published = False
+
+    def track_publish(src, dst, *args, **kwargs):
+        nonlocal published
+        result = original_rename(src, dst, *args, **kwargs)
+        if str(dst) == str(destination):
+            published = True
+        return result
+
+    def interrupt_parent_sync(fd):
+        if published:
+            raise RuntimeError("simulated process crash after publish")
+        return original_fsync(fd)
+
+    monkeypatch.setattr("mirage.telemetry.segmented.os.rename", track_publish)
+    monkeypatch.setattr("mirage.telemetry.segmented.os.fsync", interrupt_parent_sync)
+    with pytest.raises(RuntimeError, match="after publish"):
+        SegmentedEvidenceStore.migrate_legacy_log(
+            source,
+            destination,
+            max_segment_bytes=500,
+            hard_max_segment_bytes=4096,
+            anchor=anchor,
+        )
+
+    monkeypatch.undo()
+    assert destination.is_dir()
+    assert source.read_bytes() == original_bytes
+    reopened = SegmentedEvidenceStore(
+        destination,
+        max_segment_bytes=500,
+        hard_max_segment_bytes=4096,
+        anchor=anchor,
+    )
+    assert reopened.verify_all().record_count == 1
