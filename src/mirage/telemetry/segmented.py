@@ -5,6 +5,8 @@ manifest to join immutable segments into one continuous evidence chain.
 """
 from __future__ import annotations
 
+import ctypes
+import errno
 import fcntl
 import hashlib
 import hmac
@@ -113,7 +115,7 @@ class SegmentedEvidenceStore:
         target = Path(destination)
         if source.resolve() == target.resolve():
             raise EvidenceStoreError("legacy source and destination must differ")
-        if target.exists():
+        if os.path.lexists(target):
             raise EvidenceStoreError("migration destination already exists")
         if max_segment_bytes <= 0 or hard_max_segment_bytes <= max_segment_bytes:
             raise ValueError(
@@ -122,6 +124,10 @@ class SegmentedEvidenceStore:
         target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         source_store = JsonlEvidenceStore(source)
         source_verification = source_store.verify()
+        if source.stat().st_size > hard_max_segment_bytes:
+            raise EvidenceStoreError(
+                "legacy evidence log exceeds the configured hard segment limit"
+            )
         if source_verification.record_count == 0:
             raise EvidenceStoreError("cannot migrate an empty legacy evidence log")
 
@@ -217,7 +223,7 @@ class SegmentedEvidenceStore:
             staged_store.verify_all()
             # Publish the complete, verified directory atomically. The legacy
             # source remains untouched as the rollback copy.
-            os.rename(staging, target)
+            _rename_directory_noreplace(staging, target)
             parent_fd = os.open(
                 target.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
             )
@@ -948,3 +954,40 @@ class SegmentedEvidenceStore:
             os.fsync(fd)
         finally:
             os.close(fd)
+
+
+
+def _rename_directory_noreplace(source: Path, destination: Path) -> None:
+    """Atomically publish a directory without replacing an existing path.
+
+    Linux renameat2(RENAME_NOREPLACE) closes the check-then-rename race. If the
+    kernel/libc does not expose this operation, migration fails closed.
+    """
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except AttributeError as exc:
+        raise EvidenceStoreError(
+            "atomic no-replace directory publication is unavailable"
+        ) from exc
+
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        -100,
+        os.fsencode(source),
+        -100,
+        os.fsencode(destination),
+        1,
+    )
+    if result == 0:
+        return
+    error = ctypes.get_errno()
+    if error == errno.EEXIST:
+        raise EvidenceStoreError("migration destination already exists")
+    raise OSError(error, os.strerror(error), str(destination))
