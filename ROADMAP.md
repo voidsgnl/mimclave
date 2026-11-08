@@ -140,6 +140,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Add targeted crash-injection tests for interruption before/after checkpointed sealing, before/after successor creation, and before/after retirement unlink; CI run #212 passed 111 tests and Ruff on Python 3.12–3.14.
 - [x] Add manifest hash/tail tampering, missing/unmanifested segment, and retired-prefix checkpoint tests; CI run #216 passed 116 tests and Ruff on Python 3.12–3.14.
 - [x] Add non-destructive legacy single-file migration API, reject oversized sources, and atomically publish without replacing existing/racing destinations; CI run #251 passed 132 tests and Ruff on Python 3.12–3.14.
+- [x] Add `mirage migrate-evidence` CLI using the HTTPS checkpoint client and environment-only bearer-token handling; CI run #257 passed 134 tests and Ruff on Python 3.12–3.14.
 - [x] Add crash-injection tests for initialization, fsync/acknowledgement, partial writes, rotation successor durability, and migration publication; add checkpoint-prefix edge-case tests. CI run #238 passed 130 tests and Ruff on Python 3.12–3.14.
 - [ ] Extend crash injection to exhaustive syscall/filesystem-boundary coverage and add further cross-segment checkpoint edge cases.
 - [x] Extend the benchmark harness to compare legacy JSONL and segmented append/verification and exercise rotation in CI (run #245).
@@ -229,3 +230,6 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 
 - 2026-11-09: Hardened migration publication with Linux `renameat2(RENAME_NOREPLACE)`, preventing an existing or racing destination from being replaced; migration now rejects a legacy source larger than the configured hard segment limit. Added regression tests for destination races and oversized sources. GitHub Actions run #251 passed **132 tests and Ruff on Python 3.12, 3.13, and 3.14**.
+
+
+- 2026-11-09: Added the explicit `mirage migrate-evidence` CLI. It accepts source/destination paths, checkpoint URL, and segment limits; reads the bearer token only from an environment variable; never places the token in command arguments or output; and reports the verified migrated head. CLI tests cover missing-token handling and successful secret-safe execution. GitHub Actions run #257 passed **134 tests and Ruff on Python 3.12, 3.13, and 3.14**.
