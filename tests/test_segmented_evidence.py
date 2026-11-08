@@ -10,7 +10,9 @@ from mirage.telemetry.checkpoints import (
 )
 from mirage.telemetry.events import SessionEventFactory
 from mirage.telemetry.segmented import SegmentedEvidenceStore
-from mirage.telemetry.store import (\n    EvidenceIntegrityError, EvidenceStoreError, JsonlEvidenceStore\n)
+from mirage.telemetry.store import (
+    EvidenceIntegrityError, EvidenceStoreError, JsonlEvidenceStore
+)
 
 
 class MemoryAnchor:
