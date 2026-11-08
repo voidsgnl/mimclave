@@ -99,7 +99,7 @@ class SegmentedEvidenceStore:
         hard_max_segment_bytes: int,
         anchor: CheckpointAnchor,
         verify_sealed_on_append: bool = True,
-    ) -> "SegmentedEvidenceStore":
+    ) -> SegmentedEvidenceStore:
         """Copy a verified legacy JSONL log into segmented storage.
 
         The source is never modified. The original record envelopes and hashes
