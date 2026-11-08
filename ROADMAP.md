@@ -23,7 +23,7 @@
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
 **M2 — safe protocol simulation: pure HTTP engine, structured session-event model, loopback-only HTTP/HTTPS transports, and TLS 1.2 minimum policy implemented and CI-verified on Python 3.12–3.14.**
-**M3 — telemetry and evidence: legacy append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client are CI-verified. An initial separate `SegmentedEvidenceStore` now implements manifest chaining, anchored rotation, recovery of interrupted segment transitions, and operator-approved retirement. Full CI verification, exhaustive crash-injection tests, migration tooling, and target-hardware benchmarks remain outstanding. No hosted anchor service is deployed.**
+**M3 — telemetry and evidence: legacy append-only hash-chained JSONL store, idempotent append, verified export, and HTTPS external-checkpoint client are CI-verified. An initial separate `SegmentedEvidenceStore` implements manifest chaining, anchored rotation, recovery of interrupted segment transitions, and operator-approved retirement. GitHub Actions run #208 passed **105 tests and Ruff on Python 3.12, 3.13, and 3.14**. Exhaustive crash-injection/tamper coverage, migration tooling, and target-hardware benchmarks remain outstanding. No hosted anchor service is deployed.**
 
 ### M1 delivered
 - [x] Architecture, requirements, threat-model, and configuration-schema documents.
@@ -197,3 +197,6 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 
 - 2026-11-08: Added the initial `SegmentedEvidenceStore` alongside the legacy JSONL store. Implemented a hash-chained manifest, continuous evidence chain/global numbering, external-checkpoint-gated sealing, hard segment limits, interrupted-transition recovery, retained-segment idempotency, and operator-approved oldest-first retirement. Added focused tests and documented the API. CI and broader crash-injection/security validation remain pending; no production anchor service or target-hardware benchmark is included.
+
+
+- 2026-11-08: Segmented evidence implementation passed GitHub Actions run #208 on Python 3.12, 3.13, and 3.14: **105 tests and Ruff passed**. Coverage includes automatic rotation, anchor mismatch/outage handling, sealed-segment tampering, retirement, and recovery of interrupted sealing/opening transitions. Exhaustive crash-boundary testing, migration tooling, hosted anchor deployment, and target-hardware benchmarks remain open.
