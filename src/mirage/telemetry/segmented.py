@@ -90,8 +90,7 @@ class SegmentedEvidenceStore:
             active = segments[-1]
             if not active.opened or active.retired:
                 raise EvidenceIntegrityError("manifest has no active segment")
-            if self.verify_sealed_on_append:
-                self._verify_sealed(segments[:-1])
+            self._verify_chain_and_anchor(segments)
             payload = _event_payload(event)
             # Idempotency spans every retained segment, not just the active one.
             for sealed_segment in segments[:-1]:
@@ -165,37 +164,78 @@ class SegmentedEvidenceStore:
         with self._locked(exclusive=False) as manifest_fd:
             entries, _ = self._read_manifest(manifest_fd)
             segments = self._reconcile(entries, manifest_fd, None, read_only=True)
-            previous_hash = GENESIS_HASH
-            next_number = 1
-            total = 0
-            seen_event_ids: set[str] = set()
-            for segment in segments:
-                if segment.retired:
-                    previous_hash = segment.last_hash
-                    next_number = segment.last_record_number + 1
-                    continue
-                data = self._read_segment(self.directory / segment.file_name, segment)
-                result, event_index = self._scan_segment(
-                    data, segment.first_record_number - 1, segment.start_previous_hash
+            return self._verify_chain_and_anchor(segments)
+
+    def _verify_chain_and_anchor(
+        self, segments: list[_Segment]
+    ) -> StoreVerification:
+        previous_hash = GENESIS_HASH
+        next_number = 1
+        total = 0
+        seen_event_ids: set[str] = set()
+        hashes_by_number: dict[int, str] = {0: GENESIS_HASH}
+
+        for segment in segments:
+            if segment.first_record_number != next_number:
+                raise EvidenceIntegrityError(
+                    "global record numbering is discontinuous"
                 )
-                if seen_event_ids.intersection(event_index):
-                    raise EvidenceIntegrityError(
-                        "duplicate event ID across retained evidence segments"
-                    )
-                seen_event_ids.update(event_index)
+            if segment.start_previous_hash != previous_hash:
+                raise EvidenceIntegrityError("cross-segment hash link mismatch")
+            if segment.retired:
+                if segment.last_record_number < segment.first_record_number:
+                    raise EvidenceIntegrityError("retired segment record range is invalid")
+                previous_hash = segment.last_hash
+                total = segment.last_record_number
+                next_number = total + 1
+                hashes_by_number[total] = previous_hash
+                continue
+
+            data = self._read_segment(
+                self.directory / segment.file_name, segment
+            )
+            result, event_index = self._scan_segment(
+                data,
+                segment.first_record_number - 1,
+                segment.start_previous_hash,
+            )
+            if seen_event_ids.intersection(event_index):
+                raise EvidenceIntegrityError(
+                    "duplicate event ID across retained evidence segments"
+                )
+            seen_event_ids.update(event_index)
+            if not segment.opened:
                 expected_count = (
                     segment.last_record_number - segment.first_record_number + 1
                 )
-                if result.record_count != expected_count and not segment.opened:
-                    raise EvidenceIntegrityError("sealed segment record count mismatch")
-                if segment.start_previous_hash != previous_hash:
-                    raise EvidenceIntegrityError("cross-segment hash link mismatch")
-                if segment.first_record_number != next_number:
-                    raise EvidenceIntegrityError("global record numbering is discontinuous")
-                previous_hash = result.head_hash
-                total = result.record_count + segment.first_record_number - 1
-                next_number = total + 1
-            return StoreVerification(total, previous_hash)
+                if (
+                    result.record_count != expected_count
+                    or result.head_hash != segment.last_hash
+                ):
+                    raise EvidenceIntegrityError("sealed segment metadata mismatch")
+            for record_number, (_, _, record_hash) in event_index.items():
+                hashes_by_number[record_number] = record_hash
+            previous_hash = result.head_hash
+            total = segment.first_record_number - 1 + result.record_count
+            next_number = total + 1
+
+        try:
+            checkpoint = self.anchor.read()
+        except Exception as exc:
+            raise CheckpointError("could not read external checkpoint") from exc
+        if checkpoint is not None:
+            if checkpoint.record_count > total:
+                raise CheckpointError(
+                    "evidence is shorter than its external checkpoint"
+                )
+            expected_hash = hashes_by_number.get(checkpoint.record_count)
+            if expected_hash is None or not hmac.compare_digest(
+                expected_hash, checkpoint.head_hash
+            ):
+                raise CheckpointError(
+                    "evidence does not match its external checkpoint"
+                )
+        return StoreVerification(total, previous_hash)
 
     def retire_oldest_segment(
         self, export_path: str | Path, *, approval_id: str
@@ -218,6 +258,7 @@ class SegmentedEvidenceStore:
         with self._locked(exclusive=True) as manifest_fd:
             entries, _ = self._read_manifest(manifest_fd)
             segments = self._reconcile(entries, manifest_fd, None)
+            self._verify_chain_and_anchor(segments)
             target = next((item for item in segments if not item.retired), None)
             if target is None or target.opened:
                 raise EvidenceStoreError("oldest retained segment is not sealed")
