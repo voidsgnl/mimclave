@@ -341,7 +341,10 @@ class SegmentedEvidenceStore:
 
     def _publish_head(self, result: StoreVerification):
         # The anchor contract is the same monotonic CAS used by JsonlEvidenceStore.
-        current = self.anchor.read()
+        try:
+            current = self.anchor.read()
+        except Exception as exc:
+            raise CheckpointError("could not read external checkpoint") from exc
         generation = 1 if current is None else current.generation + 1
         if current is not None:
             if current.record_count > result.record_count:
@@ -352,10 +355,15 @@ class SegmentedEvidenceStore:
                 raise CheckpointError("external checkpoint does not match local evidence")
         from mirage.telemetry.checkpoints import EvidenceCheckpoint
         checkpoint = EvidenceCheckpoint(generation, result.record_count, result.head_hash)
-        self.anchor.compare_and_set(
-            expected_generation=None if current is None else current.generation,
-            checkpoint=checkpoint,
-        )
+        try:
+            self.anchor.compare_and_set(
+                expected_generation=None if current is None else current.generation,
+                checkpoint=checkpoint,
+            )
+        except CheckpointError:
+            raise
+        except Exception as exc:
+            raise CheckpointError("could not publish external checkpoint") from exc
         return checkpoint
 
     def _initialize(self) -> None:
