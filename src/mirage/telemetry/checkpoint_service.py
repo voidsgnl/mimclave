@@ -94,7 +94,9 @@ class _CheckpointDatabase:
             or info.st_nlink != 1
             or stat.S_IMODE(info.st_mode) & 0o077
         ):
-            raise ValueError("checkpoint database must be a private regular file without hard links")
+            raise ValueError(
+                "checkpoint database must be a private regular file without hard links"
+            )
 
         connection = self._connect()
         try:
@@ -225,7 +227,9 @@ def create_checkpoint_server(
         or "?" in resource_path
         or "#" in resource_path
     ):
-        raise ValueError("checkpoint resource path must be an absolute path without query or fragment")
+        raise ValueError(
+            "checkpoint resource path must be an absolute path without query or fragment"
+        )
 
     database = _CheckpointDatabase(database_path)
 
