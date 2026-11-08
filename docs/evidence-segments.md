@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit legacy-log migration API are implemented in `src/mirage/telemetry/segmented.py`. Migration verifies the source, anchors its complete head, copies the original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and atomically publishes the destination. The source file is never moved or deleted. GitHub Actions run #216 passed 116 tests and Ruff on Python 3.12–3.14; migration tests have been added and are awaiting CI. Exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
+**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit legacy-log migration API are implemented in `src/mirage/telemetry/segmented.py`. Migration verifies the source, anchors its complete head, copies the original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and atomically publishes the destination. The source file is never moved or deleted. GitHub Actions run #227 passed 119 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. Exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
 
 ## Problem
 
