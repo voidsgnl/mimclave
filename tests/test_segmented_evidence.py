@@ -658,7 +658,6 @@ def test_append_retry_is_idempotent_after_write_before_fsync_failure(
 
 def test_partial_append_fails_closed_after_restart(tmp_path, monkeypatch):
     store, anchor = make_store(tmp_path, soft=3000, hard=8192)
-    original_write = store._write_all
 
     def interrupt_during_write(fd, data):
         os.write(fd, data[: max(1, len(data) // 2)])
