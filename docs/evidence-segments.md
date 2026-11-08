@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** Design decisions plus an initial CI-verified implementation. The legacy `JsonlEvidenceStore` remains unchanged; the separate `SegmentedEvidenceStore` is implemented in `src/mirage/telemetry/segmented.py`. GitHub Actions run #216 passed 116 tests and Ruff on Python 3.12–3.14. Six injected crash-boundary tests cover checkpoint publication, segment sealing, successor creation, and retirement. Manifest tampering/truncation, missing/unmanifested segment files, and checkpoint verification across a retired prefix are also tested. Exhaustive filesystem-boundary coverage, migration tooling, and target-hardware benchmarking remain outstanding.
+**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit legacy-log migration API are implemented in `src/mirage/telemetry/segmented.py`. Migration verifies the source, anchors its complete head, copies the original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and atomically publishes the destination. The source file is never moved or deleted. GitHub Actions run #216 passed 116 tests and Ruff on Python 3.12–3.14; migration tests have been added and are awaiting CI. Exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
 
 ## Problem
 
@@ -138,7 +138,7 @@ After retirement the first retained segment's `start_previous_hash` equals the r
 
 ## Migration
 
-An existing single-file log is adopted by an explicit operator command that verifies the file, refuses to run if the anchor does not match, moves it (same filesystem, `rename`) into a new evidence directory as `segment-00000001.jsonl`, and writes the first manifest entries. The original is preserved by a prior `export_verified`. Migration is never automatic.
+An existing single-file log is migrated explicitly with `SegmentedEvidenceStore.migrate_legacy_log(...)`. The API verifies the complete legacy chain, refuses an empty or tampered source, checks any existing checkpoint prefix, and advances the external checkpoint to the full verified source head. It copies the original JSONL bytes unchanged into sealed `segment-00000001.jsonl`, writes the manifest and an empty active `segment-00000002.jsonl`, verifies the staged store, and atomically renames the staging directory into place. The legacy source is never moved, overwritten, or deleted. The destination must not already exist. Migration requires an independent `CheckpointAnchor`; it is not automatic and there is not yet a dedicated CLI command.
 
 ## Exit criteria for the implementation
 
@@ -214,3 +214,23 @@ fails closed. Integrity mismatches are never treated as temporary outages. It do
 command, a CLI, exhaustive crash injection at every filesystem boundary,
 exhaustive manifest-tampering coverage, or target-hardware benchmark results. These remain
 release-readiness work.
+
+
+## Legacy migration API
+
+The migration is an explicit, non-destructive operation. First configure an independent checkpoint anchor, then:
+
+```python
+from mirage.telemetry.segmented import SegmentedEvidenceStore
+
+store = SegmentedEvidenceStore.migrate_legacy_log(
+    "/var/lib/mirage/evidence.jsonl",
+    "/var/lib/mirage/evidence-segmented",
+    max_segment_bytes=8 * 1024 * 1024,
+    hard_max_segment_bytes=16 * 1024 * 1024,
+    anchor=checkpoint_anchor,
+)
+print(store.verify_all())
+```
+
+The source log remains in place as the rollback copy. Segment 1 is byte-for-byte identical to the legacy file, so its original record hashes and record numbering are preserved; this is not a re-serialization or a new event chain. The external checkpoint is advanced to the full source head before publication. A destination that already exists is rejected. If the process is interrupted before the final directory rename, the source remains intact and an unpublished staging directory may need operator inspection and cleanup. Keep the source until the migrated store has been independently verified and backed up.
