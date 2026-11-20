@@ -54,3 +54,32 @@ Provide a Linux-first platform that protects authorized infrastructure by exposi
 ## Initial implementation scope
 
 Milestone 1: project skeleton, typed configuration models, protocol-port compatibility validation, and unit tests. Service discovery should be read-only. No live interception, privileged networking, exploit execution, or general-purpose shell is in scope for the first milestone.
+
+
+## Continuous monitoring and adaptive deception
+
+- **FR-026:** Run the monitoring and policy engine as a persistent Linux system service independent of the user's desktop session.
+- **FR-027:** Observe network activity continuously while preserving normal traffic handling for flows allowed by policy.
+- **FR-028:** Place an independent enforcement point before protected listeners so traffic can be classified and steered before protected application data is disclosed.
+- **FR-029:** Direct policy-selected suspicious traffic to a compatible decoy without forwarding that traffic to the protected backend.
+- **FR-030:** Maintain a coherent fabricated identity for each decoy session, including protocol behaviour, banners, application routes, and simulated host data.
+- **FR-031:** Keep all attacker-controlled interactions inside a sandboxed deception plane; a decoy compromise must not create host, production-service, credential, or internal-network access.
+- **FR-032:** Separate detection confidence from response severity. Detection alone must not automatically block or disrupt a source.
+- **FR-033:** Record each traffic-steering and containment decision with timestamp, source/flow correlation, policy version, reason code, action, expiry, and outcome.
+- **FR-034:** Apply containment only when an explicit policy threshold is met; support bounded duration, automatic expiry, audit, and operator rollback.
+- **FR-035:** Keep monitoring and enforcement operational when no tray or desktop dashboard is open.
+
+## Operator interface — deferred
+
+- **FR-036:** Provide a lightweight tray client for daemon health, monitoring state, and alerts after the core runtime is stable.
+- **FR-037:** Provide a full desktop dashboard for configuration and investigation of live activity, evidence, policy decisions, and sandbox health.
+- **FR-038:** Authenticate and audit management API operations; the UI must not own privileged enforcement or sandbox lifecycle.
+
+## Additional non-functional and security requirements
+
+- **NFR-008:** Monitoring and steering decisions must meet measured latency and throughput targets; targets must be established through load testing before production claims.
+- **NFR-009:** The enforcement plane must fail closed and must not fall through to protected services when MIRAGE, policy, telemetry, or a decoy becomes unhealthy.
+- **NFR-010:** Detection and response must be independently configurable; weak or ambiguous signals must not automatically disrupt legitimate traffic.
+- **NFR-011:** Sandboxes must default-deny egress, have no production credentials or unrestricted host mounts, and enforce CPU, memory, process, disk, and session limits.
+- **NFR-012:** The system daemon must start at boot and remain functional without a graphical session.
+- **NFR-013:** Tray/dashboard availability must not affect monitoring, enforcement, evidence collection, or sandbox operation.
