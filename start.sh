@@ -23,8 +23,33 @@ if [[ -x "$ROOT_DIR/.venv/bin/mirage" ]]; then
 elif command -v mirage >/dev/null 2>&1; then
     MIRAGE=("$(command -v mirage)")
 else
-    printf '%s\n' "MIRAGE is not installed. Run: python3 -m pip install -e '.[dev]'" >&2
-    exit 1
+    printf '\nMIRAGE is not installed in this repository or on your PATH.\n'
+    read -r -p "Install MIRAGE into a local .venv now? [Y/n] " answer
+    case "${answer,,}" in
+        n|no)
+            printf 'Installation cancelled. No changes were made.\n'
+            exit 0
+            ;;
+    esac
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        printf 'MIRAGE needs Python 3.12 or newer. Install Python, then rerun ./start.sh.\n' >&2
+        exit 1
+    fi
+
+    if [[ ! -x "$ROOT_DIR/.venv/bin/python" ]]; then
+        printf '\nCreating local Python environment...\n'
+        if ! python3 -m venv "$ROOT_DIR/.venv"; then
+            printf '\nCould not create .venv. On Ubuntu, install the venv package first:\n' >&2
+            printf '  sudo apt install python3-venv\n' >&2
+            printf 'Then rerun ./start.sh.\n' >&2
+            exit 1
+        fi
+    fi
+
+    printf '\nInstalling MIRAGE...\n'
+    "$ROOT_DIR/.venv/bin/python" -m pip install -e .
+    MIRAGE=("$ROOT_DIR/.venv/bin/mirage")
 fi
 
 mkdir -p "$EVIDENCE_DIR"
@@ -47,4 +72,4 @@ printf 'Press Ctrl+C to stop.\n\n'
     --evidence "$EVIDENCE_FILE"
 
 printf '\nMIRAGE stopped. Verify evidence with:\n'
-printf '  mirage verify-evidence %q\n' "$EVIDENCE_FILE"
+printf '  %q verify-evidence %q\n' "${MIRAGE[0]}" "$EVIDENCE_FILE"
