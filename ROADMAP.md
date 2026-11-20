@@ -150,7 +150,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 ## Resume here — exact next steps
 1. Validate the runnable local HTTP prototype on Python 3.12–3.14: run the full test suite and Ruff, then exercise the documented `serve-http` → `curl` → `verify-evidence` workflow on Ubuntu. The prototype must remain loopback-only.
-2. Add an operator-friendly session inspection/export command so recorded interactions can be reviewed without manually parsing JSONL. Keep request bodies, passwords, cookies, authorization headers, and query strings out of evidence.
+2. [x] Add verified operator session inspection with activity timelines, path/status summaries, and conservative heuristic indicators. Activity clusters are source/profile/idle-time groupings, not authenticated identity sessions.
 3. Build the first deterministic interactive decoy environment (fake users, files, processes, and command responses) without executing arbitrary host commands. Every interaction must be recorded before its response is returned.
 4. Design and test the isolation boundary before any real process execution: separate namespaces/cgroups, default-deny egress, no host mounts or credentials, resource limits, and a disposable-VM tier for higher-risk work.
 5. Implement independent fail-closed network enforcement only after isolation tests exist. No production interception or public listener until crash, telemetry-outage, rollback, and bypass tests prove protected services cannot be exposed.
@@ -162,6 +162,13 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - Added `mirage verify-evidence` for operator verification of the local JSONL evidence chain.
 - Added `config/prototype-http.toml` and end-to-end tests covering an actual loopback request, evidence persistence, query-string exclusion, non-loopback rejection, HTTPS-profile rejection, and unmapped-profile rejection.
 - This is a local demonstration only. It does not intercept production traffic, forward to protected services, modify firewall rules, or execute arbitrary commands. CI verification is pending.
+
+## Session intelligence milestone — 2026-11-20
+- Added `mirage inspect-sessions`, which verifies the complete JSONL evidence chain under a shared file lock before reading event payloads.
+- Added activity clustering by source IP, decoy profile, and configurable inactivity window; reports include first/last seen, request timeline, methods, paths, status counts, and deterministic triage indicators.
+- Current indicators cover sensitive-path probes, distinct 404 sweeps, repeated paths, and high request rates. They are heuristic observations, not proof of malicious intent or user identity.
+- Collection remains conservative: request bodies, query strings, cookies, authorization headers, and User-Agent values are not added to this report.
+- Added unit and CLI tests. CI verification is pending.
 
 ## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.

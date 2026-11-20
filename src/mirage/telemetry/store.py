@@ -171,6 +171,26 @@ class JsonlEvidenceStore:
         finally:
             os.close(fd)
 
+    def read_events(self) -> list[dict[str, Any]]:
+        """Return event payloads only after verifying the complete chain under a shared lock."""
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(self.path, flags)
+        except OSError as exc:
+            raise EvidenceStoreError(f"cannot open evidence store: {exc}") from exc
+        try:
+            self._validate_file(fd)
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            _, event_index = self._scan_bytes(self._read_all(fd))
+            ordered = sorted(event_index.values(), key=lambda item: item[0])
+            return [event for _, event, _ in ordered]
+        except EvidenceStoreError:
+            raise
+        except OSError as exc:
+            raise EvidenceStoreError(f"evidence read failed: {exc}") from exc
+        finally:
+            os.close(fd)
+
     def export_verified(
         self,
         destination: str | Path,

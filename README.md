@@ -60,6 +60,22 @@ Stop the server with Ctrl+C, then verify the recorded chain:
 ./.venv/bin/mirage verify-evidence ./var/mirage/events.jsonl
 ```
 
+### Inspect recorded activity
+
+After generating some requests, inspect the verified evidence log:
+
+```bash
+./.venv/bin/mirage inspect-sessions ./var/mirage/events.jsonl
+```
+
+Use JSON output for scripts or further analysis:
+
+```bash
+./.venv/bin/mirage inspect-sessions ./var/mirage/events.jsonl --json
+```
+
+The default inactivity window is 30 minutes; change it with `--idle-timeout 600` (seconds). MIRAGE verifies the complete evidence chain before producing a report. Activity clusters are heuristic groupings by source IP, decoy profile, and inactivity—not authenticated user sessions. Shared NAT or proxy addresses can combine multiple people. Rules flag observable patterns such as sensitive-path probes, repeated 404 paths, repeated routes, and high request rates; they are triage signals, not proof of malicious intent. Request bodies, query strings, cookies, authorization headers, and User-Agent values are not included in the report.
+
 The prototype binds only to a literal loopback IP. It does not forward requests to a protected service, alter firewall rules, expose a public listener, or execute submitted commands. Use the separate `config/prototype-http.toml` example rather than the illustrative HTTPS configuration. `mirage discover` lists locally visible TCP listeners and bound UDP sockets as JSON; UDP entries are bound-socket observations, not proof that an application-level service is responsive. The explicit `mirage migrate-evidence` command migrates a legacy log after an independently hosted HTTPS checkpoint service has been configured; its bearer token is read from `MIRAGE_CHECKPOINT_TOKEN`, never from a command-line argument. See [Evidence Segments](docs/evidence-segments.md) for migration and recovery instructions.
 
 ## Safety

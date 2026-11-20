@@ -16,6 +16,7 @@ from mirage.discovery.ports import discover_proc_listeners
 from mirage.emulation.http import HttpDecoy
 from mirage.telemetry.checkpoints import CheckpointError
 from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
+from mirage.telemetry.intelligence import build_activity_report, render_activity_report
 from mirage.telemetry.segmented import SegmentedEvidenceStore
 from mirage.telemetry.store import EvidenceStoreError, JsonlEvidenceStore
 from mirage.transport.http_server import HttpDecoyServer
@@ -32,6 +33,15 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("path", type=Path, help="path to MIRAGE TOML configuration")
     verify = subparsers.add_parser("verify-evidence", help="verify a local evidence chain")
     verify.add_argument("path", type=Path, help="JSONL evidence file to verify")
+    inspect = subparsers.add_parser(
+        "inspect-sessions", help="inspect verified evidence as activity clusters and timelines"
+    )
+    inspect.add_argument("path", type=Path, help="hash-chained JSONL evidence file")
+    inspect.add_argument(
+        "--idle-timeout", type=int, default=1800,
+        help="seconds of inactivity before a new activity cluster (default: 1800)",
+    )
+    inspect.add_argument("--json", action="store_true", help="emit the report as JSON")
     serve = subparsers.add_parser(
         "serve-http", help="run a loopback-only HTTP decoy and record interactions"
     )
@@ -171,6 +181,21 @@ def main(argv: list[str] | None = None) -> int:
             f"Evidence verified: {verification.record_count} record(s); "
             f"head hash {verification.head_hash}."
         )
+        return 0
+
+    if args.command == "inspect-sessions":
+        try:
+            events = JsonlEvidenceStore(args.path).read_events()
+            report = build_activity_report(
+                events, idle_timeout_seconds=args.idle_timeout
+            )
+        except (EvidenceStoreError, OSError, ValueError) as exc:
+            print(f"Session inspection failed: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print(render_activity_report(report))
         return 0
 
     if args.command == "serve-http":

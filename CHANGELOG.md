@@ -5,6 +5,7 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- Added `mirage inspect-sessions` for verified evidence inspection, source/profile/idle-window activity clustering, request timelines, route/status summaries, and conservative indicators for sensitive-path probes, 404 sweeps, repeated routes, and high request rates. Request bodies, query strings, cookies, authorization headers, and User-Agent values remain excluded. Activity clusters are heuristics, not authenticated user sessions. Tests added; CI verification pending.
 - Added a runnable local HTTP prototype command, `mirage serve-http`, with explicit loopback-only binding, configuration/profile validation, and durable hash-chained evidence append before a decoy response is sent. Added `mirage verify-evidence`, a dedicated loopback HTTP configuration, and end-to-end tests for request handling, query-string exclusion, evidence verification, and rejection of non-loopback/unsupported profiles. CI verification is pending.
 
 ### Added
