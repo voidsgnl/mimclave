@@ -109,6 +109,7 @@ def test_worker_broker_cli_requires_socket_and_evidence_paths() -> None:
     args = cli.build_parser().parse_args([
         "serve-worker-broker",
         "--socket", "var/mirage/worker/broker.sock",
+        "--profile-id", "web-decoy",
         "--evidence", "var/mirage/worker-events.jsonl",
         "--allowed-uid", "1001",
         "--socket-gid", "1002",
