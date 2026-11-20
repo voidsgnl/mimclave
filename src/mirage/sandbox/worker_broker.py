@@ -13,7 +13,6 @@ import socket
 import stat
 import struct
 from datetime import datetime
-from typing import Any
 
 from mirage.sandbox.ipc import (
     MAX_WORKER_MESSAGE_BYTES,
@@ -71,7 +70,9 @@ class UnixWorkerEventBroker:
         ):
             raise ValueError("socket_gid must be a non-negative group ID")
         if socket_gid is not None and allowed_uids is None:
-            raise ValueError("allowed_uids must be explicit when a worker socket group is configured")
+            raise ValueError(
+                "allowed_uids must be explicit when a worker socket group is configured"
+            )
         self.socket_gid = socket_gid
         self.max_clients = max_clients
         self._server: asyncio.AbstractServer | None = None
@@ -146,7 +147,9 @@ class UnixWorkerEventBroker:
         mode = stat.S_IMODE(info.st_mode)
         if self.socket_gid is None:
             if mode & 0o077:
-                raise WorkerBrokerError("worker socket directory must have private 0700 permissions")
+                raise WorkerBrokerError(
+                    "worker socket directory must have private 0700 permissions"
+                )
         elif (
             info.st_gid != self.socket_gid
             or mode & 0o007
@@ -257,17 +260,23 @@ class UnixWorkerEventBroker:
                     frame = await reader.readuntil(b"\n")
                 except asyncio.IncompleteReadError as exc:
                     if exc.partial:
-                        raise WorkerMessageError("worker disconnected with an incomplete frame")
+                        raise WorkerMessageError(
+                            "worker disconnected with an incomplete frame"
+                        ) from exc
                     break
                 except asyncio.LimitOverrunError as exc:
-                    raise WorkerMessageError("worker frame exceeds the configured size limit") from exc
+                    raise WorkerMessageError(
+                        "worker frame exceeds the configured size limit"
+                    ) from exc
                 if len(frame) > MAX_WORKER_MESSAGE_BYTES:
                     raise WorkerMessageError("worker frame exceeds the configured size limit")
                 event = decode_worker_event(frame)
                 if session_id is None:
                     session_id = event.session_id
                 elif event.session_id != session_id:
-                    raise WorkerMessageError("one worker connection must use exactly one session ID")
+                    raise WorkerMessageError(
+                        "one worker connection must use exactly one session ID"
+                    )
 
                 session_event = self._to_session_event(event)
                 async with self._commit_lock:
@@ -281,7 +290,7 @@ class UnixWorkerEventBroker:
                     ).encode("ascii") + b"\n"
                 )
                 await writer.drain()
-        except (WorkerMessageError, WorkerBrokerError, EvidenceStoreError, OSError) as exc:
+        except (WorkerMessageError, WorkerBrokerError, EvidenceStoreError, OSError):
             # Do not disclose filesystem paths, evidence contents, or internal errors.
             try:
                 writer.write(b'{"accepted":false,"error":"event rejected"}\n')
