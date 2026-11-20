@@ -121,6 +121,7 @@ class WorkerEvent:
             if (
                 not isinstance(self.request_path, str)
                 or not self.request_path.startswith("/")
+                or self.request_path.startswith("//")
                 or len(self.request_path) > 2048
                 or "?" in self.request_path
                 or "#" in self.request_path
