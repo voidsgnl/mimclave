@@ -86,6 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     broker.add_argument("--socket", type=Path, required=True, help="private Unix socket path")
     broker.add_argument(
+        "--profile-id", required=True, help="trusted decoy profile ID assigned by the supervisor"
+    )
+    broker.add_argument(
         "--evidence", type=Path, required=True, help="hash-chained worker evidence file"
     )
     broker.add_argument(
@@ -189,6 +192,7 @@ async def _serve_worker_broker(args: argparse.Namespace) -> None:
     broker = UnixWorkerEventBroker(
         args.socket,
         store,
+        profile_id=args.profile_id,
         allowed_uids=None if args.allowed_uid is None else set(args.allowed_uid),
         socket_gid=args.socket_gid,
         max_clients=args.max_clients,
