@@ -259,3 +259,52 @@ def test_broker_requires_normalized_trusted_profile_id(tmp_path: Path) -> None:
             JsonlEvidenceStore(tmp_path / "events.jsonl"),
             profile_id="../untrusted",
         )
+
+
+def test_broker_rejects_reuse_of_a_recently_closed_session_id(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
+        await broker.start()
+        session_id = str(uuid4())
+        try:
+            reader, writer = await asyncio.open_unix_connection(socket_path)
+            writer.write(encode_worker_event(make_event(session_id)))
+            await writer.drain()
+            assert json.loads(await reader.readline())["accepted"] is True
+            writer.close()
+            await writer.wait_closed()
+            await reader.readline()
+
+            reader2, writer2 = await asyncio.open_unix_connection(socket_path)
+            writer2.write(encode_worker_event(make_event(session_id)))
+            await writer2.drain()
+            assert json.loads(await reader2.readline())["accepted"] is False
+            writer2.close()
+            await writer2.wait_closed()
+            assert store.verify().record_count == 1
+        finally:
+            await broker.close()
+
+    asyncio.run(scenario())
+
+
+def test_broker_shutdown_closes_active_worker_connections(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        broker = UnixWorkerEventBroker(
+            socket_path,
+            JsonlEvidenceStore(tmp_path / "events.jsonl"),
+            profile_id="web-decoy",
+            client_idle_timeout=10,
+        )
+        await broker.start()
+        reader, writer = await asyncio.open_unix_connection(socket_path)
+        await broker.close()
+        assert await asyncio.wait_for(reader.readline(), timeout=1) == b""
+        writer.close()
+        await writer.wait_closed()
+        assert not socket_path.exists()
+
+    asyncio.run(scenario())
