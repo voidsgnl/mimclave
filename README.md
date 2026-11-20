@@ -25,7 +25,7 @@ M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the
 2. Independent decoy profiles and port-to-decoy mapping.
 3. Protocol-aware service emulation.
 4. Network interception and fail-closed containment.
-5. Simulated command environments and fabricated filesystems.
+5. Simulated command environments and fabricated filesystems (initial local interpreter implemented).
 6. Disposable, strongly isolated execution environments for controlled research.
 7. Session recording, event timelines, and tamper-evident evidence.
 8. Threat intelligence correlation and cautious attribution analysis.
@@ -59,6 +59,18 @@ Stop the server with Ctrl+C, then verify the recorded chain:
 ```bash
 ./.venv/bin/mirage verify-evidence ./var/mirage/events.jsonl
 ```
+
+### Try the virtual terminal
+
+Run the isolated, in-memory Linux-like command interpreter:
+
+```bash
+./.venv/bin/mirage simulate-terminal
+```
+
+Try `help`, `whoami`, `hostname`, `pwd`, `ls`, `cd /home/deploy`, `cat README.txt`, `cat /etc/passwd`, or `ps aux`. Type `exit` to leave. The files, users, processes, and host identity are fabricated examples.
+
+**This is not a real shell.** Only a small allowlist of read-only commands exists. MIRAGE does not call a shell or subprocess, access the host filesystem, or make network connections. Pipes, redirects, command chaining, expansions, and path traversal are rejected. Unknown commands are not executed. This is a local simulator for validating the decoy environment; a network-facing interactive protocol adapter and per-remote-session evidence recording are not implemented yet.
 
 ### Inspect recorded activity
 
