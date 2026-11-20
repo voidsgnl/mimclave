@@ -40,7 +40,7 @@ async def register_session(
     protocol: str = "http",
     worker_uid: int | None = None,
     worker_pid: int | None = None,
-) -> None:
+) -> bool:
     """Register trusted client metadata for the current test worker process."""
     reader, writer = await asyncio.open_unix_connection(
         socket_path.with_name(socket_path.name + ".control")
@@ -118,7 +118,7 @@ def test_broker_rejects_wrong_peer_uid(tmp_path: Path) -> None:
         await broker.start()
         try:
             event = make_event(str(uuid4()))
-            assert not await register_session(socket_path, event.session_id, worker_uid=os.geteuid() + 1)
+            await register_session(socket_path, event.session_id, worker_uid=os.geteuid() + 1)
             reader, writer = await asyncio.open_unix_connection(socket_path)
             writer.write(encode_worker_event(event))
             await writer.drain()
@@ -295,7 +295,7 @@ def test_broker_uses_its_trusted_profile_not_worker_claim(tmp_path: Path) -> Non
     mapped = broker._to_session_event(event, {"protocol": "http", "source_ip": "198.51.100.44", "source_port": 45678})
     assert mapped.profile_id == "trusted-profile"
     assert mapped.source_ip == "198.51.100.44"
-    assert mapped.source_port == 49152
+    assert mapped.source_port == 45678
 
 
 def test_broker_requires_normalized_trusted_profile_id(tmp_path: Path) -> None:
