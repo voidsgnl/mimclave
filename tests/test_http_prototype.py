@@ -46,7 +46,7 @@ def test_local_http_prototype_serves_and_records_request(tmp_path) -> None:
         try:
             reader, writer = await asyncio.open_connection(*server.address)
             writer.write(
-                b"GET /login?token=must-not-be-recorded HTTP/1.1\\r\\n"
+                b"GET /?token=must-not-be-recorded HTTP/1.1\\r\\n"
                 b"Host: attacker.example.test\\r\\n\\r\\n"
             )
             await writer.drain()
@@ -64,7 +64,7 @@ def test_local_http_prototype_serves_and_records_request(tmp_path) -> None:
     verification = JsonlEvidenceStore(evidence).verify()
     assert verification.record_count == 1
     recorded = evidence.read_text(encoding="utf-8")
-    assert '"/login"' in recorded
+    assert '"/"' in recorded
     assert "must-not-be-recorded" not in recorded
     assert "attacker.example.test" not in recorded
 
