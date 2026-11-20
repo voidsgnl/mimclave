@@ -302,7 +302,11 @@ def test_broker_shutdown_closes_active_worker_connections(tmp_path: Path) -> Non
         )
         await broker.start()
         reader, writer = await asyncio.open_unix_connection(socket_path)
-        await asyncio.sleep(0)
+        for _ in range(100):
+            if broker._active_clients:
+                break
+            await asyncio.sleep(0.01)
+        assert broker._active_clients == 1
         await broker.close()
         assert await asyncio.wait_for(reader.readline(), timeout=1) == b""
         writer.close()
