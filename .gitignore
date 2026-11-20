@@ -23,3 +23,6 @@ evidence/
 *.log
 *.pem
 *.key
+
+# Local runtime data and evidence
+/var/
