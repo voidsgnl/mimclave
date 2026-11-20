@@ -203,7 +203,8 @@ async def _serve_worker_broker(args: argparse.Namespace) -> None:
     await broker.start()
     print(
         f"MIRAGE worker event broker listening on {args.socket} "
-        f"(evidence={args.evidence}; max-clients={args.max_clients})",
+        f"(supervisor-control={broker.control_socket_path}; "
+        f"evidence={args.evidence}; max-clients={args.max_clients})",
         flush=True,
     )
     try:
