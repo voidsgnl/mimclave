@@ -173,3 +173,50 @@ def test_ssh_worker_event_maps_only_normalized_command_name() -> None:
     assert mapped.path == "/terminal/whoami"
     assert mapped.method == "SSH"
     assert mapped.status_code == 200
+
+
+def test_broker_supports_explicit_worker_group_socket_permissions(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        group_dir = tmp_path / "worker-group"
+        group_dir.mkdir(mode=0o700)
+        os.chown(group_dir, os.geteuid(), os.getegid())
+        group_dir.chmod(0o710)
+        socket_path = group_dir / "broker.sock"
+        broker = UnixWorkerEventBroker(
+            socket_path,
+            JsonlEvidenceStore(tmp_path / "events.jsonl"),
+            allowed_uids={os.geteuid()},
+            socket_gid=os.getegid(),
+        )
+        await broker.start()
+        try:
+            info = os.lstat(socket_path)
+            assert info.st_gid == os.getegid()
+            assert stat.S_IMODE(info.st_mode) == 0o660
+            reader, writer = await asyncio.open_unix_connection(socket_path)
+            event = make_event(str(uuid4()))
+            writer.write(encode_worker_event(event))
+            await writer.drain()
+            assert json.loads(await reader.readline())["accepted"] is True
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            await broker.close()
+
+    asyncio.run(scenario())
+
+
+def test_broker_refuses_to_unlink_an_active_broker_socket(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        first = UnixWorkerEventBroker(socket_path, JsonlEvidenceStore(tmp_path / "first.jsonl"))
+        second = UnixWorkerEventBroker(socket_path, JsonlEvidenceStore(tmp_path / "second.jsonl"))
+        await first.start()
+        try:
+            with pytest.raises(WorkerBrokerError, match="already listening"):
+                await second.start()
+            assert stat.S_ISSOCK(os.lstat(socket_path).st_mode)
+        finally:
+            await first.close()
+
+    asyncio.run(scenario())
