@@ -13,7 +13,8 @@ from pathlib import Path
 import socket
 import stat
 import struct
-from datetime import datetime
+from datetime import UTC, datetime
+import re
 
 from mirage.sandbox.ipc import (
     MAX_WORKER_MESSAGE_BYTES,
@@ -41,6 +42,7 @@ class UnixWorkerEventBroker:
         socket_path: str | Path,
         evidence_store: JsonlEvidenceStore,
         *,
+        profile_id: str,
         allowed_uids: set[int] | None = None,
         socket_gid: int | None = None,
         max_clients: int = MAX_BROKER_CLIENTS,
@@ -54,6 +56,11 @@ class UnixWorkerEventBroker:
         except OSError as exc:
             raise WorkerBrokerError("worker socket parent directory must already exist") from exc
         self.socket_path = resolved_parent / requested_path.name
+        if not isinstance(profile_id, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9._-]{0,63}", profile_id
+        ):
+            raise ValueError("profile_id must be a normalized decoy profile identifier")
+        self.profile_id = profile_id
         self.evidence_store = evidence_store
         self.allowed_uids = frozenset(
             {os.geteuid()} if allowed_uids is None else allowed_uids
@@ -229,10 +236,9 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError("worker UID is not authorized")
         return uid
 
-    @staticmethod
-    def _to_session_event(event: WorkerEvent) -> SessionEvent:
-        """Map only supported, credential-free observations to evidence schema."""
-        timestamp = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00"))
+    def _to_session_event(self, event: WorkerEvent) -> SessionEvent:
+        """Map worker claims to evidence using broker-owned profile and receipt time."""
+        timestamp = datetime.now(UTC)
         if event.protocol in {"http", "https"}:
             if (
                 event.event_type != "http.request"
@@ -258,13 +264,15 @@ class UnixWorkerEventBroker:
             session_id=event.session_id,
             sequence=event.sequence,
             occurred_at=timestamp,
-            profile_id=event.profile_id,
+            profile_id=self.profile_id,
             event_type=event.event_type,
             method=method,
             path=path,
             status_code=status_code,
-            source_ip=event.source_ip,
-            source_port=event.source_port,
+            # Source addresses remain unset until a trusted supervisor registers
+            # the accepted client socket and binds its peer address to this session.
+            source_ip=None,
+            source_port=None,
         )
 
     async def _handle_client(
