@@ -120,8 +120,8 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
 
             first_output = "".join(first_channel.output)
             second_output = "".join(second_channel.output)
-            assert "/home/deploy" in first_output
-            assert "/var/www" in second_output
+            assert ":/home/deploy$ " in first_output
+            assert ":/var/www$ " in second_output
             assert [event.path for event in events] == [
                 "/terminal/cd",
                 "/terminal/pwd",
