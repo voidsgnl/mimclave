@@ -174,19 +174,20 @@ class SSHDecoyServer:
             )
 
     async def _read_command(self, process: object) -> str | None:
-        """Read one bounded command without buffering an unlimited input line."""
+        """Read one bounded command with an absolute line deadline."""
         reader = process.stdin  # type: ignore[attr-defined]
         chars: list[str] = []
-        while len(chars) <= MAX_COMMAND_LENGTH:
-            try:
-                char = await asyncio.wait_for(reader.read(1), timeout=self.idle_timeout)
-            except TimeoutError:
-                return None
-            if not char:
-                return None if not chars else "".join(chars)
-            if char in ("\\n", "\\r"):
-                return "".join(chars)
-            chars.append(char)
+        try:
+            async with asyncio.timeout(self.idle_timeout):
+                while len(chars) <= MAX_COMMAND_LENGTH:
+                    char = await reader.read(1)
+                    if not char:
+                        return None if not chars else "".join(chars)
+                    if char in ("\\n", "\\r"):
+                        return "".join(chars)
+                    chars.append(char)
+        except TimeoutError:
+            return None
         raise ValueError("command exceeds the maximum length")
 
     @staticmethod
