@@ -25,6 +25,7 @@ def tls_material(tmp_path: Path) -> tuple[ssl.SSLContext, ssl.SSLContext]:
         capture_output=True,
     )
     server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.minimum_version = ssl.TLSVersion.TLSv1_2
     server_context.load_cert_chain(certfile=cert, keyfile=key)
     client_context = ssl.create_default_context(cafile=cert)
     return server_context, client_context
