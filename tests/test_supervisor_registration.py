@@ -68,7 +68,7 @@ def test_supervisor_registration_client_registers_exact_worker_identity(
             evidence = evidence_path.read_text(encoding="utf-8")
             assert "192.0.2.44" in evidence
             assert "203.0.113.99" not in evidence
-            assert "trusted-profile" not in evidence
+            assert "worker-controlled-value" not in evidence
             assert "web-decoy" in evidence
         finally:
             await broker.close()
