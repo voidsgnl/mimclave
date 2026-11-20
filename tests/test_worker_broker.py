@@ -58,6 +58,23 @@ async def register_session(
     assert response["registered"] is True
 
 
+
+async def register_session(socket_path: Path, session_id: str, protocol: str = "http") -> None:
+    reader, writer = await asyncio.open_unix_connection(str(socket_path) + ".control")
+    payload = {
+        "session_id": session_id,
+        "protocol": protocol,
+        "source_ip": "198.51.100.44",
+        "source_port": 49152,
+    }
+    writer.write(json.dumps(payload).encode("utf-8") + b"\\n")
+    await writer.drain()
+    response = json.loads(await reader.readline())
+    writer.close()
+    await writer.wait_closed()
+    assert response == {"registered": True}
+
+
 def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> None:
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
@@ -217,7 +234,7 @@ def test_ssh_worker_event_maps_only_normalized_command_name() -> None:
         JsonlEvidenceStore(Path("/tmp/mirage-test-events.jsonl")),
         profile_id="ssh-decoy",
     )
-    mapped = broker._to_session_event(event)
+    mapped = broker._to_session_event(event, ("http", "198.51.100.44", 49152, 999999999999.0))
     assert mapped.path == "/terminal/whoami"
     assert mapped.method == "SSH"
     assert mapped.status_code == 200
@@ -283,10 +300,10 @@ def test_broker_uses_its_trusted_profile_not_worker_claim(tmp_path: Path) -> Non
         profile_id="trusted-profile",
     )
     event = make_event(str(uuid4()))
-    mapped = broker._to_session_event(event)
+    mapped = broker._to_session_event(event, ("ssh", "198.51.100.44", 49152, 999999999999.0))
     assert mapped.profile_id == "trusted-profile"
-    assert mapped.source_ip is None
-    assert mapped.source_port is None
+    assert mapped.source_ip == "198.51.100.44"
+    assert mapped.source_port == 49152
 
 
 def test_broker_requires_normalized_trusted_profile_id(tmp_path: Path) -> None:
@@ -308,6 +325,7 @@ def test_broker_rejects_reuse_of_a_recently_closed_session_id(tmp_path: Path) ->
         try:
             await register_session(socket_path, session_id)
             reader, writer = await asyncio.open_unix_connection(socket_path)
+            await register_session(socket_path, session_id)
             writer.write(encode_worker_event(make_event(session_id)))
             await writer.drain()
             assert json.loads(await reader.readline())["accepted"] is True
