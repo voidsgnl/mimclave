@@ -78,7 +78,7 @@ Try `help`, `whoami`, `hostname`, `pwd`, `ls`, `cd /home/deploy`, `cat README.tx
 Install the optional SSH dependency:
 
 ```bash
-python -m pip install -e '.[ssh]'
+./.venv/bin/python -m pip install -e '.[ssh]'
 ```
 
 Create a dedicated host key (do not reuse your personal or system SSH keys):
