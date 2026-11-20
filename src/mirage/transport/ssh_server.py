@@ -225,6 +225,7 @@ class SSHDecoyServer:
             process.stdout.write(
                 "MIRAGE virtual terminal — simulated data only; no host commands execute.\\r\\n"
             )  # type: ignore[attr-defined]
+            commands_handled = 0
             while True:
                 process.stdout.write(  # type: ignore[attr-defined]
                     PROMPT.format(
@@ -250,7 +251,8 @@ class SSHDecoyServer:
                 elif output:
                     process.stdout.write(output + "\\r\\n")  # type: ignore[attr-defined]
                 await process.stdout.drain()  # type: ignore[attr-defined]
-                if factory._sequence >= MAX_COMMANDS_PER_SESSION:
+                commands_handled += 1
+                if commands_handled >= MAX_COMMANDS_PER_SESSION:
                     process.stdout.write("MIRAGE: session command limit reached.\\r\\n")  # type: ignore[attr-defined]
                     break
             process.exit(0)  # type: ignore[attr-defined]
