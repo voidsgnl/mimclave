@@ -73,6 +73,9 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
             info = os.lstat(socket_path)
             assert stat.S_ISSOCK(info.st_mode)
             assert stat.S_IMODE(info.st_mode) == 0o600
+            control_info = os.lstat(broker.control_socket_path)
+            assert stat.S_ISSOCK(control_info.st_mode)
+            assert stat.S_IMODE(control_info.st_mode) == 0o600
 
             event = make_event(str(uuid4()))
             await register_session(socket_path, event.session_id)
@@ -99,6 +102,7 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
         finally:
             await broker.close()
         assert not socket_path.exists()
+        assert not broker.control_socket_path.exists()
 
     asyncio.run(scenario())
 
