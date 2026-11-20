@@ -60,6 +60,7 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
             assert stored["profile_id"] == "web-decoy"
             assert stored["source_ip"] is None
             assert stored["source_port"] is None
+            assert stored["occurred_at"] != event.timestamp
         finally:
             await broker.close()
         assert not socket_path.exists()
@@ -301,6 +302,7 @@ def test_broker_shutdown_closes_active_worker_connections(tmp_path: Path) -> Non
         )
         await broker.start()
         reader, writer = await asyncio.open_unix_connection(socket_path)
+        await asyncio.sleep(0)
         await broker.close()
         assert await asyncio.wait_for(reader.readline(), timeout=1) == b""
         writer.close()
