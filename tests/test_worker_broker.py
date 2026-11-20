@@ -8,7 +8,11 @@ from uuid import uuid4
 import pytest
 
 from mirage.sandbox.ipc import WorkerEvent, encode_worker_event
-from mirage.sandbox.worker_broker import UnixWorkerEventBroker, WorkerBrokerError
+from mirage.sandbox.worker_broker import (
+    UnixWorkerEventBroker,
+    WorkerBrokerError,
+    encode_supervisor_registration,
+)
 from mirage.telemetry.store import JsonlEvidenceStore
 
 
@@ -41,16 +45,16 @@ async def register_session(
     reader, writer = await asyncio.open_unix_connection(
         socket_path.with_name(socket_path.name + ".control")
     )
-    message = {
-        "action": "register",
-        "session_id": session_id,
-        "protocol": protocol,
-        "source_ip": "198.51.100.44",
-        "source_port": 45678,
-        "worker_uid": os.geteuid() if worker_uid is None else worker_uid,
-        "worker_pid": os.getpid() if worker_pid is None else worker_pid,
-    }
-    writer.write(json.dumps(message).encode("utf-8") + b"\n")
+    writer.write(
+        encode_supervisor_registration(
+            session_id=session_id,
+            protocol=protocol,
+            source_ip="198.51.100.44",
+            source_port=45678,
+            worker_uid=os.geteuid() if worker_uid is None else worker_uid,
+            worker_pid=os.getpid() if worker_pid is None else worker_pid,
+        )
+    )
     await writer.drain()
     response = json.loads(await reader.readline())
     writer.close()
