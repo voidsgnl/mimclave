@@ -2,13 +2,13 @@
 
 ## Status and scope
 
-MIRAGE includes an experimental SSH transport adapter for its deterministic,
+MIMCLAVE includes an experimental SSH transport adapter for its deterministic,
 in-memory virtual terminal. It is intended for local integration testing only.
 The listener refuses non-loopback addresses and must not be exposed to a LAN or
 the public internet.
 
 The SSH protocol implementation is provided by the optional
-[AsyncSSH](https://asyncssh.readthedocs.io/) dependency. MIRAGE does not
+[AsyncSSH](https://asyncssh.readthedocs.io/) dependency. MIMCLAVE does not
 implement cryptography or the SSH wire protocol itself.
 
 ## Security properties
@@ -45,13 +45,13 @@ Install the optional dependency:
 python -m pip install -e '.[ssh]'
 ```
 
-Create a dedicated key for this test service. Do not point MIRAGE at your
+Create a dedicated key for this test service. Do not point MIMCLAVE at your
 personal `~/.ssh/id_*` key or reuse the host's real SSH server key:
 
 ```bash
-install -d -m 700 var/mirage/keys
-ssh-keygen -t ed25519 -N '' -f var/mirage/keys/mirage_test_host_ed25519
-chmod 600 var/mirage/keys/mirage_test_host_ed25519
+install -d -m 700 var/mimclave/keys
+ssh-keygen -t ed25519 -N '' -f var/mimclave/keys/mimclave_test_host_ed25519
+chmod 600 var/mimclave/keys/mimclave_test_host_ed25519
 ```
 
 The private key is local runtime material and must never be committed. The
@@ -60,18 +60,18 @@ repository ignores `/var/`.
 ## Start the local SSH decoy
 
 ```bash
-./.venv/bin/mirage serve-ssh \
+./.venv/bin/mimclave serve-ssh \
   --host 127.0.0.1 \
   --port 2222 \
-  --host-key var/mirage/keys/mirage_test_host_ed25519 \
-  --evidence var/mirage/ssh-events.jsonl
+  --host-key var/mimclave/keys/mimclave_test_host_ed25519 \
+  --evidence var/mimclave/ssh-events.jsonl
 ```
 
 In another terminal, connect using the dedicated local known-hosts file:
 
 ```bash
 ssh -p 2222 \
-  -o UserKnownHostsFile=var/mirage/ssh_known_hosts \
+  -o UserKnownHostsFile=var/mimclave/ssh_known_hosts \
   -o StrictHostKeyChecking=accept-new \
   visitor@127.0.0.1
 ```
@@ -82,8 +82,8 @@ Try safe simulated commands such as `whoami`, `pwd`, `ls`,
 Verify the interaction evidence after stopping the server:
 
 ```bash
-./.venv/bin/mirage verify-evidence var/mirage/ssh-events.jsonl
-./.venv/bin/mirage inspect-sessions var/mirage/ssh-events.jsonl
+./.venv/bin/mimclave verify-evidence var/mimclave/ssh-events.jsonl
+./.venv/bin/mimclave inspect-sessions var/mimclave/ssh-events.jsonl
 ```
 
 ## Current limitations
@@ -91,7 +91,7 @@ Verify the interaction evidence after stopping the server:
 - This is a local prototype, not a production honeypot or an isolated sandbox.
 - Authentication is intentionally disabled; the service accepts sessions
   without validating a client identity.
-- The SSH host key must be provisioned by the operator. MIRAGE does not
+- The SSH host key must be provisioned by the operator. MIMCLAVE does not
   generate it or alter SSH configuration.
 - Command output is a deterministic simulation. There is no real operating
   system behind the session.

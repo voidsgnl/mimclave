@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from mirage.telemetry.events import SessionEvent, SessionEventFactory
+from mimclave.telemetry.events import SessionEvent, SessionEventFactory
 
 
 def test_event_factory_assigns_correlation_and_monotonic_sequence() -> None:

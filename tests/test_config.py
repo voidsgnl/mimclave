@@ -1,7 +1,7 @@
 import pytest
 
-from mirage.config.models import DecoyProfile, Endpoint, ListenerMapping, Protocol
-from mirage.config.validation import ConfigurationError, validate_mapping
+from mimclave.config.models import DecoyProfile, Endpoint, ListenerMapping, Protocol
+from mimclave.config.validation import ConfigurationError, validate_mapping
 
 
 def profile(protocol: Protocol = Protocol.HTTPS) -> DecoyProfile:

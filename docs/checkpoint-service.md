@@ -1,9 +1,9 @@
-# Independent MIRAGE Checkpoint Service
+# Independent MIMCLAVE Checkpoint Service
 
 The repository includes a small SQLite-backed HTTP service implementing the
 conditional checkpoint contract used by `HttpsCheckpointAnchor`. It is
 intended to run on a **separate, independently administered host** from the
-MIRAGE evidence store.
+MIMCLAVE evidence store.
 
 Running this service on the evidence host does not provide independent
 protection. The service host, database, credentials, backups, and administrative
@@ -28,45 +28,45 @@ HTTPS client maps to `CheckpointConflictError`.
 
 ## Install and configure on the separate host
 
-Install MIRAGE on the checkpoint host, then create a private service directory
+Install MIMCLAVE on the checkpoint host, then create a private service directory
 and a high-entropy token:
 
 ```bash
-sudo useradd --system --home-dir /var/lib/mirage-checkpoint --create-home --shell /usr/sbin/nologin mirage-checkpoint
-sudo install -d -m 0700 -o mirage-checkpoint -g mirage-checkpoint /var/lib/mirage-checkpoint
+sudo useradd --system --home-dir /var/lib/mimclave-checkpoint --create-home --shell /usr/sbin/nologin mimclave-checkpoint
+sudo install -d -m 0700 -o mimclave-checkpoint -g mimclave-checkpoint /var/lib/mimclave-checkpoint
 openssl rand -hex 32
 ```
 
 Use the generated token in a root-readable environment file such as
-`/etc/mirage-checkpoint.env`:
+`/etc/mimclave-checkpoint.env`:
 
 ```ini
-MIRAGE_CHECKPOINT_TOKEN=replace-with-generated-64-character-token
-MIRAGE_CHECKPOINT_DB=/var/lib/mirage-checkpoint/checkpoint.sqlite3
-MIRAGE_CHECKPOINT_HOST=127.0.0.1
-MIRAGE_CHECKPOINT_PORT=8080
-MIRAGE_CHECKPOINT_PATH=/v1/mirage/checkpoint
+MIMCLAVE_CHECKPOINT_TOKEN=replace-with-generated-64-character-token
+MIMCLAVE_CHECKPOINT_DB=/var/lib/mimclave-checkpoint/checkpoint.sqlite3
+MIMCLAVE_CHECKPOINT_HOST=127.0.0.1
+MIMCLAVE_CHECKPOINT_PORT=8080
+MIMCLAVE_CHECKPOINT_PATH=/v1/mimclave/checkpoint
 ```
 
 Protect the file:
 
 ```bash
-sudo chown root:root /etc/mirage-checkpoint.env
-sudo chmod 0600 /etc/mirage-checkpoint.env
+sudo chown root:root /etc/mimclave-checkpoint.env
+sudo chmod 0600 /etc/mimclave-checkpoint.env
 ```
 
 The service requires a bearer token of at least 32 characters. Do not commit the
 token, place it in command-line arguments, or reuse it for unrelated services.
 
-Install the supplied systemd unit. If MIRAGE is installed in a virtual
+Install the supplied systemd unit. If MIMCLAVE is installed in a virtual
 environment, edit `ExecStart` in the unit to point to that environment's
-`mirage-checkpoint-server` executable:
+`mimclave-checkpoint-server` executable:
 
 ```bash
-sudo install -m 0644 deploy/mirage-checkpoint.service /etc/systemd/system/
+sudo install -m 0644 deploy/mimclave-checkpoint.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now mirage-checkpoint.service
-sudo systemctl status mirage-checkpoint.service
+sudo systemctl enable --now mimclave-checkpoint.service
+sudo systemctl status mimclave-checkpoint.service
 ```
 
 The unit runs as the dedicated unprivileged account, uses a restrictive umask,
@@ -90,7 +90,7 @@ configured in the evidence host's `HttpsCheckpointAnchor` and migration CLI
 must be:
 
 ```text
-https://anchor.example.net/v1/mirage/checkpoint
+https://anchor.example.net/v1/mimclave/checkpoint
 ```
 
 The proxy and service host should have their own access controls, monitoring,
@@ -102,15 +102,15 @@ Load the same bearer token into the evidence host's secret manager or protected
 environment. Then configure the HTTPS client or run the migration CLI:
 
 ```bash
-mirage migrate-evidence \
-  /var/lib/mirage/evidence.jsonl \
-  /var/lib/mirage/evidence-segmented \
-  --checkpoint-url https://anchor.example.net/v1/mirage/checkpoint \
+mimclave migrate-evidence \
+  /var/lib/mimclave/evidence.jsonl \
+  /var/lib/mimclave/evidence-segmented \
+  --checkpoint-url https://anchor.example.net/v1/mimclave/checkpoint \
   --max-segment-bytes 8388608 \
   --hard-max-segment-bytes 16777216
 ```
 
-The CLI reads `MIRAGE_CHECKPOINT_TOKEN` from the environment. It never accepts
+The CLI reads `MIMCLAVE_CHECKPOINT_TOKEN` from the environment. It never accepts
 the bearer token as an argument or prints it.
 
 ## Operational requirements and limitations

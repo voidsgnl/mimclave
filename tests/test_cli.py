@@ -1,7 +1,7 @@
 import json
 
-from mirage import cli
-from mirage.discovery.ports import Listener
+from mimclave import cli
+from mimclave.discovery.ports import Listener
 
 
 def test_discover_command_emits_json(monkeypatch, capsys) -> None:
@@ -31,7 +31,7 @@ def test_validate_config_command_returns_nonzero_for_missing_file(capsys) -> Non
 def test_migrate_evidence_requires_checkpoint_token_environment(
     monkeypatch, capsys
 ) -> None:
-    monkeypatch.delenv("MIRAGE_CHECKPOINT_TOKEN", raising=False)
+    monkeypatch.delenv("MIMCLAVE_CHECKPOINT_TOKEN", raising=False)
 
     result = cli.main([
         "migrate-evidence",
@@ -46,7 +46,7 @@ def test_migrate_evidence_requires_checkpoint_token_environment(
     ])
 
     assert result == 2
-    assert "MIRAGE_CHECKPOINT_TOKEN" in capsys.readouterr().err
+    assert "MIMCLAVE_CHECKPOINT_TOKEN" in capsys.readouterr().err
 
 
 def test_migrate_evidence_uses_environment_token_and_reports_result(
@@ -69,7 +69,7 @@ def test_migrate_evidence_uses_environment_token_and_reports_result(
                 "head_hash": "a" * 64,
             })()
 
-    monkeypatch.setenv("MIRAGE_CHECKPOINT_TOKEN", "test-secret")
+    monkeypatch.setenv("MIMCLAVE_CHECKPOINT_TOKEN", "test-secret")
     monkeypatch.setattr(
         cli,
         "HttpsCheckpointAnchor",
@@ -108,9 +108,9 @@ def test_worker_broker_cli_requires_socket_and_evidence_paths() -> None:
         cli.build_parser().parse_args(["serve-worker-broker"])
     args = cli.build_parser().parse_args([
         "serve-worker-broker",
-        "--socket", "var/mirage/worker/broker.sock",
+        "--socket", "var/mimclave/worker/broker.sock",
         "--profile-id", "web-decoy",
-        "--evidence", "var/mirage/worker-events.jsonl",
+        "--evidence", "var/mimclave/worker-events.jsonl",
         "--allowed-uid", "1001",
         "--socket-gid", "1002",
     ])

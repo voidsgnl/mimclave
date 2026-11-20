@@ -3,18 +3,18 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mirage-deception"
+name = "mimclave-deception"
 version = "0.1.0"
 description = "Active cyber deception, service impersonation, containment, and threat intelligence."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "UNLICENSED" }
-authors = [{ name = "MIRAGE contributors" }]
+authors = [{ name = "MIMCLAVE contributors" }]
 dependencies = []
 
 [project.scripts]
-mirage = "mirage.cli:main"
-mirage-checkpoint-server = "mirage.telemetry.checkpoint_service:main"
+mimclave = "mimclave.cli:main"
+mimclave-checkpoint-server = "mimclave.telemetry.checkpoint_service:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "mypy>=1.11", "asyncssh>=2.20,<3"]

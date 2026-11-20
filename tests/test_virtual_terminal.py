@@ -1,4 +1,4 @@
-from mirage.emulation.terminal import VirtualTerminal
+from mimclave.emulation.terminal import VirtualTerminal
 
 
 def test_virtual_terminal_returns_fabricated_linux_identity() -> None:
@@ -109,9 +109,9 @@ def test_path_traversal_and_real_host_paths_are_not_accessible() -> None:
 
 def test_input_limits_and_invalid_quotes_fail_safely() -> None:
     terminal = VirtualTerminal()
-    assert terminal.execute("x" * 513) == "mirage: input too long"
-    assert terminal.execute("cat 'unterminated") == "mirage: invalid quoting"
-    assert terminal.execute("cat " + " ".join(["x"] * 17)) == "mirage: too many arguments"
+    assert terminal.execute("x" * 513) == "mimclave: input too long"
+    assert terminal.execute("cat 'unterminated") == "mimclave: invalid quoting"
+    assert terminal.execute("cat " + " ".join(["x"] * 17)) == "mimclave: too many arguments"
 
 
 def test_help_and_clear_are_local_terminal_operations() -> None:
@@ -121,12 +121,12 @@ def test_help_and_clear_are_local_terminal_operations() -> None:
 
 
 def test_simulate_terminal_cli_exits_cleanly(monkeypatch, capsys) -> None:
-    from mirage import cli
+    from mimclave import cli
 
     commands = iter(["whoami", "cat /etc/hostname", "exit"])
     monkeypatch.setattr("builtins.input", lambda _prompt: next(commands))
     assert cli.main(["simulate-terminal"]) == 0
     output = capsys.readouterr().out
-    assert "MIRAGE virtual terminal" in output
+    assert "MIMCLAVE virtual terminal" in output
     assert "www-data" in output
     assert "intranet.example.test" in output

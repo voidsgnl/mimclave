@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from mirage import cli
-from mirage.cli import _create_http_server
-from mirage.telemetry.store import JsonlEvidenceStore
+from mimclave import cli
+from mimclave.cli import _create_http_server
+from mimclave.telemetry.store import JsonlEvidenceStore
 
 
 HTTP_CONFIG = """version = 1

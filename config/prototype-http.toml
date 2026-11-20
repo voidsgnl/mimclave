@@ -3,7 +3,7 @@ version = 1
 
 [[profiles]]
 id = "local-web"
-name = "MIRAGE local web decoy"
+name = "MIMCLAVE local web decoy"
 protocol = "http"
 service_name = "nginx"
 service_version = "1.24.0"
@@ -13,7 +13,7 @@ hostname = "intranet.example.test"
 profile_id = "local-web"
 listener = { host = "127.0.0.1", port = 8080, transport = "tcp" }
 
-# Inventory only: MIRAGE does not connect to or forward traffic to this endpoint.
+# Inventory only: MIMCLAVE does not connect to or forward traffic to this endpoint.
 [[protected_services]]
 id = "example-real-web"
 description = "Illustrative protected service; not used by the local prototype."

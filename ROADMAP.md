@@ -1,10 +1,10 @@
-# MIRAGE Roadmap & Handoff
+# MIMCLAVE Roadmap & Handoff
 
 > **Purpose:** Durable project handoff. Update this file whenever implementation progress, decisions, blockers, or the next task changes. A new chat should resume from this file without relying on conversation history.
 
 ## Project identity
 - Product: Linux-first defensive cyber-deception platform.
-- Repository: https://github.com/voidsgnl/mirage
+- Repository: https://github.com/voidsgnl/mimclave
 - Working branch: `main`; do not create branches unless explicitly requested.
 - Python: 3.12+; primary host target: Ubuntu/Linux.
 
@@ -13,17 +13,17 @@
 - Default protocol/port expectations apply (e.g. HTTPS/TLS on TCP 443). Nonstandard mappings require an explicit reason.
 - Decoy identity must remain coherent during a session.
 - A decoy compromise must not expose host resources, production services, credentials, data, or internal networks.
-- Enforcement must fail closed independently of the MIRAGE process.
+- Enforcement must fail closed independently of the MIMCLAVE process.
 - Default-deny sandbox egress; no host credentials or unrestricted host mounts.
 - Begin with read-only discovery and protocol simulation, not arbitrary shell execution.
-- MIRAGE observes interactions with its own decoys; it cannot inspect arbitrary commands/files on an attacker's device.
+- MIMCLAVE observes interactions with its own decoys; it cannot inspect arbitrary commands/files on an attacker's device.
 - Defensive use only on owned/authorized systems. No retaliation. Attribution is probabilistic, not identity proof.
 
 
 
 ## Product operating model — clarified 2026-11-20
 
-MIRAGE is a continuously running system-level monitor and adaptive-deception service, not a desktop application that must stay open.
+MIMCLAVE is a continuously running system-level monitor and adaptive-deception service, not a desktop application that must stay open.
 
 - **Observe continuously:** A background Linux daemon monitors traffic and correlates activity in real time.
 - **Preserve legitimate traffic:** Normal flows continue to their configured real services under policy.
@@ -49,8 +49,8 @@ The detailed design and release gates are in [docs/runtime-model.md](docs/runtim
 - [x] TCP conventions are not incorrectly applied to UDP mappings.
 - [x] Example TOML config keeps real protected-service inventory separate from decoy identity.
 - [x] Read-only Linux /proc/net discovery for TCP listeners and bound UDP sockets.
-- [x] mirage discover and python -m mirage discover CLI.
-- [x] mirage validate-config <path> CLI with distinct exit codes for valid, policy-invalid, and load-invalid configurations.
+- [x] mimclave discover and python -m mimclave discover CLI.
+- [x] mimclave validate-config <path> CLI with distinct exit codes for valid, policy-invalid, and load-invalid configurations.
 - [x] GitHub Actions matrix for Python 3.12, 3.13, and 3.14.
 - [x] Package installation, 25 tests, and Ruff checks passed on all three Python versions.
 
@@ -109,23 +109,23 @@ Structured event schema, session correlation, monotonic ordering, append-only ha
 Threat-modelled runtime, default-deny egress, no host mounts/credentials, least privilege, resource limits, namespaces/cgroups/seccomp; disposable VM tier for higher risk. Escape testing is a release gate.
 
 ### M5 — Fail-closed traffic enforcement
-Independent enforcement; MIRAGE crash, policy parse failure, or telemetry outage cannot expose production services. No deployment until failure-injection tests pass.
+Independent enforcement; MIMCLAVE crash, policy parse failure, or telemetry outage cannot expose production services. No deployment until failure-injection tests pass.
 
 ### M6 — Intelligence and operator experience
 Evidence-backed correlation with confidence/provenance, operator API/UI, alerting, audit/export.
 
 ## Key files
-- src/mirage/telemetry/store.py — append-only JSONL evidence store with SHA-256 chain verification and fsync.
+- src/mimclave/telemetry/store.py — append-only JSONL evidence store with SHA-256 chain verification and fsync.
 - docs/evidence-storage.md — evidence envelope, durability, locking, permissions, and integrity limitations.
 - docs/evidence-segments.md — segmented rotation/retention design and recorded decisions (not implemented).
 - ROADMAP.md — canonical roadmap and new-chat handoff.
-- src/mirage/config/models.py — immutable typed models.
-- src/mirage/config/validation.py — port/protocol compatibility rules.
-- src/mirage/config/loader.py — TOML loading and structural validation.
-- src/mirage/config/registry.py — profile resolution and registry validation.
-- src/mirage/discovery/ports.py — read-only Linux socket discovery.
-- src/mirage/emulation/http.py — pure HTTP decoy response engine; no socket listener.
-- src/mirage/cli.py — CLI.
+- src/mimclave/config/models.py — immutable typed models.
+- src/mimclave/config/validation.py — port/protocol compatibility rules.
+- src/mimclave/config/loader.py — TOML loading and structural validation.
+- src/mimclave/config/registry.py — profile resolution and registry validation.
+- src/mimclave/discovery/ports.py — read-only Linux socket discovery.
+- src/mimclave/emulation/http.py — pure HTTP decoy response engine; no socket listener.
+- src/mimclave/cli.py — CLI.
 - config/example.toml — example configuration.
 - docs/configuration.md — TOML schema and validation rules.
 - docs/protocol-simulation.md — M2 design and security boundaries.
@@ -151,11 +151,11 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [x] Implement an HTTPS external-anchor client using verified TLS, bearer authentication, bounded responses, redirect refusal, and ETag conditional writes.
 - [x] CI run #169 passed 93 tests and Ruff on Python 3.12, 3.13, and 3.14; the benchmark smoke test also passed.
 - [x] Draft the segmented rotation/retention design (one continuous chain, hash-chained segment manifest, checkpoint-anchored rotation, operator-approved retirement) and record its decisions in `docs/evidence-segments.md`; design only.
-- [x] Confirm event IDs are generated with UUIDs and implement the initial segment manifest, continuous chain, anchored rotation, interrupted-transition recovery, and operator-approved retirement in `src/mirage/telemetry/segmented.py`.
+- [x] Confirm event IDs are generated with UUIDs and implement the initial segment manifest, continuous chain, anchored rotation, interrupted-transition recovery, and operator-approved retirement in `src/mimclave/telemetry/segmented.py`.
 - [x] Add targeted crash-injection tests for interruption before/after checkpointed sealing, before/after successor creation, and before/after retirement unlink; CI run #212 passed 111 tests and Ruff on Python 3.12–3.14.
 - [x] Add manifest hash/tail tampering, missing/unmanifested segment, and retired-prefix checkpoint tests; CI run #216 passed 116 tests and Ruff on Python 3.12–3.14.
 - [x] Add non-destructive legacy single-file migration API, reject oversized sources, and atomically publish without replacing existing/racing destinations; CI run #251 passed 132 tests and Ruff on Python 3.12–3.14.
-- [x] Add `mirage migrate-evidence` CLI using the HTTPS checkpoint client and environment-only bearer-token handling; CI run #257 passed 134 tests and Ruff on Python 3.12–3.14.
+- [x] Add `mimclave migrate-evidence` CLI using the HTTPS checkpoint client and environment-only bearer-token handling; CI run #257 passed 134 tests and Ruff on Python 3.12–3.14.
 - [x] Add crash-injection tests for initialization, fsync/acknowledgement, partial writes, rotation successor durability, and migration publication; add checkpoint-prefix edge-case tests. CI run #238 passed 130 tests and Ruff on Python 3.12–3.14.
 - [ ] Extend crash injection to exhaustive syscall/filesystem-boundary coverage and add further cross-segment checkpoint edge cases.
 - [x] Extend the benchmark harness to compare legacy JSONL and segmented append/verification and exercise rotation in CI (run #245).
@@ -173,19 +173,19 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 7. Update this roadmap and CHANGELOG after each meaningful change.
 
 ## Local prototype milestone — 2026-11-20
-- Added `mirage serve-http`, a runnable HTTP-only local decoy command. It validates the selected profile, refuses non-loopback bind addresses, uses the existing deterministic HTTP emulator, and appends each successful interaction to the hash-chained JSONL evidence store before returning the response.
-- Added `mirage verify-evidence` for operator verification of the local JSONL evidence chain.
+- Added `mimclave serve-http`, a runnable HTTP-only local decoy command. It validates the selected profile, refuses non-loopback bind addresses, uses the existing deterministic HTTP emulator, and appends each successful interaction to the hash-chained JSONL evidence store before returning the response.
+- Added `mimclave verify-evidence` for operator verification of the local JSONL evidence chain.
 - Added `config/prototype-http.toml` and end-to-end tests covering an actual loopback request, evidence persistence, query-string exclusion, non-loopback rejection, HTTPS-profile rejection, and unmapped-profile rejection.
 - This is a local demonstration only. It does not intercept production traffic, forward to protected services, modify firewall rules, or execute arbitrary commands. CI verification is pending.
 
 ## Session intelligence milestone — 2026-11-20
-- Added `mirage inspect-sessions`, which verifies the complete JSONL evidence chain under a shared file lock before reading event payloads.
+- Added `mimclave inspect-sessions`, which verifies the complete JSONL evidence chain under a shared file lock before reading event payloads.
 - Added activity clustering by source IP, decoy profile, and configurable inactivity window; reports include first/last seen, request timeline, methods, paths, status counts, and deterministic triage indicators.
 - Current indicators cover sensitive-path probes, distinct 404 sweeps, repeated paths, and high request rates. They are heuristic observations, not proof of malicious intent or user identity.
 - Collection remains conservative: request bodies, query strings, cookies, authorization headers, and User-Agent values are not added to this report.
 - Added unit and CLI tests. CI verification is pending.
 
-## Sandbox policy model milestone — 2026-11-20\n- Added immutable sandbox tier, network mode, and resource-limit models with fail-closed validation for policy identifiers, namespace sets, seccomp profile names, privilege flags, host mounts, host credentials, and tier-specific requirements.\n- Added tests for safe simulation defaults, isolated-worker requirements, disposable-VM lifecycle requirements, resource bounds, and malformed policy values.\n- This is declarative policy validation only. It does not create namespaces, cgroups, seccomp filters, VMs, or network rules. CI verification is pending.\n\n## Sandbox worker IPC contract milestone — 2026-11-20\n- Added a strict, bounded newline-delimited JSON event contract for worker-to-supervisor messages. It accepts only an explicit metadata allowlist and rejects unknown fields, duplicate JSON keys, oversized frames, invalid timestamps/IPs, query-bearing paths, raw command strings, and malformed identifiers.\n- Added per-session monotonic sequence enforcement and an active-session bound. The sequence guard is designed for serialized broker use; it is not itself an IPC server.\n- CI run #377 passed 265 tests, evidence benchmark smoke test, and Ruff on Python 3.12, 3.13, and 3.14.\n- No IPC socket, evidence broker process, namespace launcher, cgroup, seccomp filter, or sandbox runtime has been implemented yet.\n\n## Sandbox worker event broker milestone — 2026-11-20\n- Added a Linux Unix-domain-socket broker that authenticates peer UIDs with SO_PEERCRED, enforces private socket and parent-directory ownership/modes, refuses active or ambiguous stale socket replacement, bounds clients and frames, validates one session per connection, monotonic event sequences, recent session replay, idle timeouts, and orderly shutdown. The broker assigns the trusted profile ID and receipt timestamp; worker-claimed source addresses are not persisted until trusted supervisor registration.\n- Added a CLI service, `mirage serve-worker-broker`, with same-UID private-socket defaults and an explicit allowlisted worker-UID/group mode. Added tests for valid event persistence, wrong UID, invalid sequence, cross-session connection reuse, insecure directories, path preservation, active socket protection, group socket permissions, and SSH command metadata.\n- This broker is not yet connected to HTTP/SSH transports or a launched worker process. Same-UID development mode is not isolation. GitHub Actions run #417 passed 282 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. The next step is a trusted session-registration handshake so the supervisor can bind the accepted client peer address and session metadata before worker events are accepted.\n\n## Handoff log
+## Sandbox policy model milestone — 2026-11-20\n- Added immutable sandbox tier, network mode, and resource-limit models with fail-closed validation for policy identifiers, namespace sets, seccomp profile names, privilege flags, host mounts, host credentials, and tier-specific requirements.\n- Added tests for safe simulation defaults, isolated-worker requirements, disposable-VM lifecycle requirements, resource bounds, and malformed policy values.\n- This is declarative policy validation only. It does not create namespaces, cgroups, seccomp filters, VMs, or network rules. CI verification is pending.\n\n## Sandbox worker IPC contract milestone — 2026-11-20\n- Added a strict, bounded newline-delimited JSON event contract for worker-to-supervisor messages. It accepts only an explicit metadata allowlist and rejects unknown fields, duplicate JSON keys, oversized frames, invalid timestamps/IPs, query-bearing paths, raw command strings, and malformed identifiers.\n- Added per-session monotonic sequence enforcement and an active-session bound. The sequence guard is designed for serialized broker use; it is not itself an IPC server.\n- CI run #377 passed 265 tests, evidence benchmark smoke test, and Ruff on Python 3.12, 3.13, and 3.14.\n- No IPC socket, evidence broker process, namespace launcher, cgroup, seccomp filter, or sandbox runtime has been implemented yet.\n\n## Sandbox worker event broker milestone — 2026-11-20\n- Added a Linux Unix-domain-socket broker that authenticates peer UIDs with SO_PEERCRED, enforces private socket and parent-directory ownership/modes, refuses active or ambiguous stale socket replacement, bounds clients and frames, validates one session per connection, monotonic event sequences, recent session replay, idle timeouts, and orderly shutdown. The broker assigns the trusted profile ID and receipt timestamp; worker-claimed source addresses are not persisted until trusted supervisor registration.\n- Added a CLI service, `mimclave serve-worker-broker`, with same-UID private-socket defaults and an explicit allowlisted worker-UID/group mode. Added tests for valid event persistence, wrong UID, invalid sequence, cross-session connection reuse, insecure directories, path preservation, active socket protection, group socket permissions, and SSH command metadata.\n- This broker is not yet connected to HTTP/SSH transports or a launched worker process. Same-UID development mode is not isolation. GitHub Actions run #417 passed 282 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. The next step is a trusted session-registration handshake so the supervisor can bind the accepted client peer address and session metadata before worker events are accepted.\n\n## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
 - 2026-11-03: Completed M1 configuration, registry, discovery, CLI, docs, and CI verification (run #27 green on Python 3.12–3.14).
 - 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine, bounded strict parser, fixed fabricated routes, and profile/header safety checks. CI run #45 passed 41 tests and Ruff on Python 3.12–3.14.
@@ -263,7 +263,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - 2026-11-09: Hardened migration publication with Linux `renameat2(RENAME_NOREPLACE)`, preventing an existing or racing destination from being replaced; migration now rejects a legacy source larger than the configured hard segment limit. Added regression tests for destination races and oversized sources. GitHub Actions run #251 passed **132 tests and Ruff on Python 3.12, 3.13, and 3.14**.
 
 
-- 2026-11-09: Added the explicit `mirage migrate-evidence` CLI. It accepts source/destination paths, checkpoint URL, and segment limits; reads the bearer token only from an environment variable; never places the token in command arguments or output; and reports the verified migrated head. CLI tests cover missing-token handling and successful secret-safe execution. GitHub Actions run #257 passed **134 tests and Ruff on Python 3.12, 3.13, and 3.14**.
+- 2026-11-09: Added the explicit `mimclave migrate-evidence` CLI. It accepts source/destination paths, checkpoint URL, and segment limits; reads the bearer token only from an environment variable; never places the token in command arguments or output; and reports the verified migrated head. CLI tests cover missing-token handling and successful secret-safe execution. GitHub Actions run #257 passed **134 tests and Ruff on Python 3.12, 3.13, and 3.14**.
 
 
 - 2026-11-09: Implemented the SQLite-backed checkpoint service with conditional ETag GET/PUT, serialized durable CAS updates, an append-only hash-chained checkpoint history, strict request validation, loopback-only binding, and high-entropy bearer-token requirements. Added systemd and Caddy deployment examples. CI run #277 passed **146 tests and Ruff on Python 3.12, 3.13, and 3.14**. The service is not deployed or independently audited; it must be installed on a separate host and backed up independently before it provides operational independence.
@@ -276,22 +276,22 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - Registration binds the session UUID to protocol, original client source IP/port, worker UID and worker PID. The broker authenticates the control peer with `SO_PEERCRED`, then verifies the worker's own PID/UID and protocol before accepting its first event.
 - Registrations expire, are single-claim, and are removed when the worker connection closes. The broker records only supervisor-supplied source metadata and still owns evidence writes.
 - The supervisor registration codec and broker API are foundations only: HTTP/SSH listeners do not yet register their accepted sockets or launch supervised workers. A same-UID development setup is not a security boundary against compromise of that UID. GitHub Actions run #449 passed 286 tests, the evidence benchmark smoke test, and Ruff on Python 3.12, 3.13, and 3.14. Local Ubuntu verification remains pending.
-- Added `src/mirage/sandbox/supervisor.py` with a bounded async client for the private control socket. It sends the accepted peer metadata and exact worker UID/PID, requires an explicit broker acknowledgement, applies a timeout, and fails closed on rejection or malformed responses. Added integration tests proving the broker persists supervisor-registered source metadata and its own profile ID rather than worker claims. CI verification for this addition is pending.
+- Added `src/mimclave/sandbox/supervisor.py` with a bounded async client for the private control socket. It sends the accepted peer metadata and exact worker UID/PID, requires an explicit broker acknowledgement, applies a timeout, and fails closed on rejection or malformed responses. Added integration tests proving the broker persists supervisor-registered source metadata and its own profile ID rather than worker claims. CI verification for this addition is pending.
 - This is only the registration client, not a process supervisor or worker launcher. The next implementation step is a fixed-purpose worker lifecycle/launch mechanism with a start gate, identity drop, descriptor handoff, timeout, and cleanup; only after that should the HTTP/SSH listeners be connected.
 
 ### Session intelligence delivered
-- Added `mirage inspect-sessions <evidence.jsonl>`, which verifies the complete JSONL hash chain before grouping events into heuristic activity clusters.
+- Added `mimclave inspect-sessions <evidence.jsonl>`, which verifies the complete JSONL hash chain before grouping events into heuristic activity clusters.
 - Reports source/profile, first and last seen, route/status counts, timelines, and conservative triage indicators. Clusters are not authenticated sessions or identity attribution.
 - The user successfully exercised this against four local HTTP requests. One cluster was reported with no indicators; the browser's `/favicon.ico` 404 was an ordinary missing-icon request.
 
 ### Initial virtual terminal simulator delivered
-- Added `src/mirage/emulation/terminal.py` and `mirage simulate-terminal`.
+- Added `src/mimclave/emulation/terminal.py` and `mimclave simulate-terminal`.
 - The interpreter uses only fabricated in-memory files, users, and process output. Supported commands: `help`, `whoami`, `hostname`, `pwd`, `id`, `uname`, `ls`, `cat`, `ps`, `cd`, and `clear`.
 - Strictly rejects shell operators, redirects, pipes, expansions, traversal, excessive input, unsupported options, and unknown commands. No shell, subprocess, host filesystem, or network calls.
 - The local simulator remains the command execution boundary. The experimental SSH adapter described below exposes it only on loopback; it is not a production or public honeypot.
 
 ### Experimental SSH transport milestone — 2026-11-20 (CI passed)
-- Added optional AsyncSSH-based `SSHDecoyServer` and `mirage serve-ssh`. The listener requires a dedicated operator-provisioned host key with restrictive file permissions and accepts literal loopback addresses only.
+- Added optional AsyncSSH-based `SSHDecoyServer` and `mimclave serve-ssh`. The listener requires a dedicated operator-provisioned host key with restrictive file permissions and accepts literal loopback addresses only.
 - Each SSH process/channel receives a fresh in-memory `VirtualTerminal`; no host shell, subprocess, filesystem, network forwarding, SFTP, agent forwarding, or X11 is exposed.
 - Added connection/session caps, login timeout, bounded SSH channel window, per-command absolute input deadline, 512-character command limit, and 100-command interactive session limit.
 - SSH authentication is intentionally disabled for this local deception prototype. The server does not request or store passwords or client keys. It also omits usernames, full command lines, and arguments from evidence; only normalized command names and source/session metadata are recorded.

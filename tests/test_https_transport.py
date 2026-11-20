@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from mirage.config.models import DecoyProfile, Protocol
-from mirage.emulation.http import HttpDecoy
-from mirage.telemetry.events import SessionEvent
-from mirage.transport.http_server import HttpDecoyServer, HttpsDecoyServer
+from mimclave.config.models import DecoyProfile, Protocol
+from mimclave.emulation.http import HttpDecoy
+from mimclave.telemetry.events import SessionEvent
+from mimclave.transport.http_server import HttpDecoyServer, HttpsDecoyServer
 
 
 @pytest.fixture

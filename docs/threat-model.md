@@ -1,4 +1,4 @@
-# MIRAGE Threat Model
+# MIMCLAVE Threat Model
 
 ## Assets to protect
 
@@ -34,7 +34,7 @@
 ## Required mitigations
 
 - Keep production listeners off externally reachable interfaces where feasible.
-- Enforce network separation with host-level controls independent of the MIRAGE process.
+- Enforce network separation with host-level controls independent of the MIMCLAVE process.
 - Deny outbound sandbox networking by default.
 - Do not mount host paths or pass host credentials into decoys.
 - Avoid privileged containers; use syscall, capability, namespace, and resource restrictions.
@@ -46,7 +46,7 @@
 
 ## Out of scope
 
-MIRAGE does not attempt to access, execute commands on, persist on, or collect files from an attacker's personal device. It observes activity directed at MIRAGE-controlled services and records network-level metadata available to the protected system. Real-world identification must rely on lawful investigative processes and corroborated evidence.
+MIMCLAVE does not attempt to access, execute commands on, persist on, or collect files from an attacker's personal device. It observes activity directed at MIMCLAVE-controlled services and records network-level metadata available to the protected system. Real-world identification must rely on lawful investigative processes and corroborated evidence.
 
 ## Security release gate
 

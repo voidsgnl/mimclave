@@ -1,7 +1,7 @@
 import pytest
 
-from mirage.config.models import DecoyProfile, Protocol
-from mirage.emulation.http import HttpDecoy, RequestError
+from mimclave.config.models import DecoyProfile, Protocol
+from mimclave.emulation.http import HttpDecoy, RequestError
 
 
 @pytest.fixture

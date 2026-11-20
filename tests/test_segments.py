@@ -21,13 +21,13 @@ from pathlib import Path
 
 import pytest
 
-from mirage.telemetry.checkpoints import (
+from mimclave.telemetry.checkpoints import (
     CheckpointConflictError,
     CheckpointError,
     EvidenceCheckpoint,
 )
-from mirage.telemetry.events import SessionEventFactory
-from mirage.telemetry.segments import (
+from mimclave.telemetry.events import SessionEventFactory
+from mimclave.telemetry.segments import (
     EvidenceIntegrityError,
     EvidenceStoreError,
     SegmentRotationError,
@@ -35,7 +35,7 @@ from mirage.telemetry.segments import (
     SegmentedEvidenceStore,
     _segment_file_name,
 )
-from mirage.telemetry.store import JsonlEvidenceStore
+from mimclave.telemetry.store import JsonlEvidenceStore
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +298,7 @@ def test_idempotent_append_returns_original_receipt(tmp_path: Path) -> None:
 
 
 def test_conflicting_event_id_is_rejected(tmp_path: Path) -> None:
-    from mirage.telemetry.store import EvidenceEventConflictError
+    from mimclave.telemetry.store import EvidenceEventConflictError
 
     store = make_store(tmp_path / "ev")
     store.open()

@@ -2,11 +2,11 @@ import asyncio
 
 import pytest
 
-from mirage.config.models import DecoyProfile, Protocol
-from mirage.emulation.http import HttpDecoy
-from mirage.telemetry.events import SessionEvent
-from mirage.telemetry.store import JsonlEvidenceStore
-from mirage.transport.http_server import HttpDecoyServer
+from mimclave.config.models import DecoyProfile, Protocol
+from mimclave.emulation.http import HttpDecoy
+from mimclave.telemetry.events import SessionEvent
+from mimclave.telemetry.store import JsonlEvidenceStore
+from mimclave.transport.http_server import HttpDecoyServer
 
 
 def make_decoy() -> HttpDecoy:

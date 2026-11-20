@@ -5,13 +5,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from mirage.telemetry.checkpoints import (
+from mimclave.telemetry.checkpoints import (
     CheckpointConflictError,
     CheckpointError,
     EvidenceCheckpoint,
 )
-from mirage.telemetry.events import SessionEventFactory
-from mirage.telemetry.store import (
+from mimclave.telemetry.events import SessionEventFactory
+from mimclave.telemetry.store import (
     EvidenceEventConflictError,
     EvidenceIntegrityError,
     EvidenceStoreError,
