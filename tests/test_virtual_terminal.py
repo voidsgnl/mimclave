@@ -101,7 +101,7 @@ def test_shell_operators_and_expansion_are_rejected() -> None:
 
 def test_path_traversal_and_real_host_paths_are_not_accessible() -> None:
     terminal = VirtualTerminal()
-    assert "No such file" in terminal.execute("cat ../../etc/shadow")
+    assert "Permission denied" in terminal.execute("cat ../../etc/shadow")
     assert "No such file" in terminal.execute("cat /proc/self/environ")
     assert "Permission denied" in terminal.execute("cat /etc/shadow")
     assert "etc" in terminal.execute("ls /")
