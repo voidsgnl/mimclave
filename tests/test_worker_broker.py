@@ -226,7 +226,10 @@ def test_ssh_worker_event_maps_only_normalized_command_name() -> None:
         JsonlEvidenceStore(Path("/tmp/mirage-test-events.jsonl")),
         profile_id="ssh-decoy",
     )
-    mapped = broker._to_session_event(event, {"protocol": "ssh", "source_ip": "198.51.100.44", "source_port": 45678})
+    mapped = broker._to_session_event(
+        event,
+        {"protocol": "ssh", "source_ip": "198.51.100.44", "source_port": 45678},
+    )
     assert mapped.path == "/terminal/whoami"
     assert mapped.method == "SSH"
     assert mapped.status_code == 200
@@ -292,7 +295,10 @@ def test_broker_uses_its_trusted_profile_not_worker_claim(tmp_path: Path) -> Non
         profile_id="trusted-profile",
     )
     event = make_event(str(uuid4()))
-    mapped = broker._to_session_event(event, {"protocol": "http", "source_ip": "198.51.100.44", "source_port": 45678})
+    mapped = broker._to_session_event(
+        event,
+        {"protocol": "http", "source_ip": "198.51.100.44", "source_port": 45678},
+    )
     assert mapped.profile_id == "trusted-profile"
     assert mapped.source_ip == "198.51.100.44"
     assert mapped.source_port == 45678
