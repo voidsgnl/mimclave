@@ -13,7 +13,6 @@ Coverage targets from the design's exit criteria:
 - verify_sealed_on_append is exercised in both settings.
 """
 
-import os
 import stat
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -463,8 +462,6 @@ def test_retirement_requires_sealed_segment(tmp_path: Path) -> None:
 
 
 def test_retirement_requires_valid_export(tmp_path: Path) -> None:
-    import shutil
-
     anchor = MemoryAnchor()
     store = make_store(tmp_path / "ev", max_records=1, max_bytes=8192, hard_bytes=16384)
     store.open()
@@ -492,12 +489,14 @@ def test_retirement_requires_matching_checkpoint(tmp_path: Path) -> None:
     store.open()
     store.append(make_event(1), anchor=anchor)
     store.append(make_event(2), anchor=anchor)
-    # Do NOT publish checkpoint — anchor has no checkpoint.
+    # Rotation checkpointed through the append anchor. Retirement must reject
+    # a different anchor that has no matching checkpoint.
     export_path = tmp_path / "export.jsonl"
     shutil.copy2(tmp_path / "ev" / _segment_file_name(1), export_path)
     export_path.chmod(0o600)
+    unpublished_anchor = MemoryAnchor()
     with pytest.raises((SegmentRetirementError, CheckpointError)):
-        store.retire_oldest_segment(export_path, anchor, "approval")
+        store.retire_oldest_segment(export_path, unpublished_anchor, "approval")
 
 
 def test_retirement_requires_nonempty_approval_id(tmp_path: Path) -> None:
@@ -564,7 +563,10 @@ def test_tampered_sealed_segment_detected_on_append_when_verify_sealed(
     tmp_path: Path,
 ) -> None:
     anchor = MemoryAnchor()
-    store = make_store(tmp_path / "ev", max_records=1, max_bytes=8192, hard_bytes=16384, verify_sealed=True)
+    store = make_store(
+        tmp_path / "ev", max_records=1, max_bytes=8192,
+        hard_bytes=16384, verify_sealed=True
+    )
     store.open()
     store.append(make_event(1), anchor=anchor)
     store.append(make_event(2), anchor=anchor)
@@ -584,13 +586,19 @@ def test_tampered_sealed_segment_not_detected_on_append_without_verify_sealed(
 ) -> None:
     """With verify_sealed_on_append=False, tampering is not caught on append."""
     anchor = MemoryAnchor()
-    store_v = make_store(tmp_path / "ev", max_records=1, max_bytes=8192, hard_bytes=16384, verify_sealed=True)
+    store_v = make_store(
+        tmp_path / "ev", max_records=1, max_bytes=8192,
+        hard_bytes=16384, verify_sealed=True
+    )
     store_v.open()
     store_v.append(make_event(1), anchor=anchor)
     store_v.append(make_event(2), anchor=anchor)  # causes rotation
 
     # Open same directory with verify_sealed_on_append=False.
-    store_nv = make_store(tmp_path / "ev", max_records=1, max_bytes=8192, hard_bytes=16384, verify_sealed=False)
+    store_nv = make_store(
+        tmp_path / "ev", max_records=1, max_bytes=8192,
+        hard_bytes=16384, verify_sealed=False
+    )
 
     seg1 = tmp_path / "ev" / _segment_file_name(1)
     seg1.chmod(0o600)
