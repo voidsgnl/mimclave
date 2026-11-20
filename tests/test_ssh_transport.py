@@ -2,13 +2,12 @@
 
 import asyncio
 import os
-import shutil
 
 import asyncssh
 import pytest
 
 from mirage.telemetry.events import SessionEventFactory
-from mirage.transport.ssh_server import SSHDecoyServer
+from mirage.transport.ssh_server import SSHDecoyServer, _VirtualTerminalSession
 
 
 def _host_key(tmp_path):
@@ -78,58 +77,59 @@ def test_ssh_exec_uses_virtual_terminal_and_persists_redacted_event(tmp_path) ->
 
 
 def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) -> None:
-    ssh = shutil.which("ssh")
-    if ssh is None:
-        pytest.skip("OpenSSH client is not installed")
+    key_path = _host_key(tmp_path)
+    events = []
+    server = SSHDecoyServer(
+        event_sink=events.append,
+        host_key=key_path,
+        port=0,
+    )
 
-    async def scenario() -> None:
-        key_path = _host_key(tmp_path)
-        events = []
-        server = SSHDecoyServer(
-            event_sink=events.append,
-            host_key=key_path,
-            port=0,
-        )
-        await server.start()
-        host, port = server.address
-        client = None
-        try:
-            client = await asyncio.create_subprocess_exec(
-                ssh,
-                "-tt",
-                "-p",
-                str(port),
-                "-o",
-                "StrictHostKeyChecking=no",
-                "-o",
-                "UserKnownHostsFile=/dev/null",
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "PreferredAuthentications=none",
-                f"visitor@{host}",
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(
-                client.communicate(b"cd /home/deploy\\npwd\\nexit\\n"),
-                timeout=5,
-            )
-            assert client.returncode == 0, stderr.decode(errors="replace")
-            output = stdout.decode(errors="replace")
-            assert "/home/deploy" in output
-            assert [event.path for event in events] == [
-                "/terminal/cd",
-                "/terminal/pwd",
-            ]
-        finally:
-            if client is not None and client.returncode is None:
-                client.kill()
-                await client.wait()
-            await server.close()
+    class FakeChannel:
+        def __init__(self) -> None:
+            self.output = []
+            self.exit_status = None
 
-    asyncio.run(scenario())
+        def get_extra_info(self, name):
+            assert name == "peername"
+            return ("127.0.0.1", 54321)
+
+        def write(self, value: str) -> None:
+            self.output.append(value)
+
+        def exit(self, status: int) -> None:
+            self.exit_status = status
+
+    first_channel = FakeChannel()
+    second_channel = FakeChannel()
+    server._active_sessions = 2
+    first = _VirtualTerminalSession(server)
+    second = _VirtualTerminalSession(server)
+    try:
+        first.connection_made(first_channel)
+        first.shell_requested()
+        first.session_started()
+        first.data_received("cd /home/deploy\\n", None)
+        first.data_received("pwd\\n", None)
+
+        second.connection_made(second_channel)
+        second.shell_requested()
+        second.session_started()
+        second.data_received("pwd\\n", None)
+
+        first_output = "".join(first_channel.output)
+        second_output = "".join(second_channel.output)
+        assert "/home/deploy" in first_output
+        assert "/var/www" in second_output
+        assert [event.path for event in events] == [
+            "/terminal/cd",
+            "/terminal/pwd",
+            "/terminal/pwd",
+        ]
+    finally:
+        first._finish(0)
+        second._finish(0)
+    assert server._active_sessions == 0
 
 
 def test_ssh_evidence_failure_sends_no_command_output(tmp_path) -> None:
