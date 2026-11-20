@@ -185,7 +185,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - Collection remains conservative: request bodies, query strings, cookies, authorization headers, and User-Agent values are not added to this report.
 - Added unit and CLI tests. CI verification is pending.
 
-## Handoff log
+## Sandbox policy model milestone — 2026-11-20\n- Added immutable sandbox tier, network mode, and resource-limit models with fail-closed validation for policy identifiers, namespace sets, seccomp profile names, privilege flags, host mounts, host credentials, and tier-specific requirements.\n- Added tests for safe simulation defaults, isolated-worker requirements, disposable-VM lifecycle requirements, resource bounds, and malformed policy values.\n- This is declarative policy validation only. It does not create namespaces, cgroups, seccomp filters, VMs, or network rules. CI verification is pending.\n\n## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
 - 2026-11-03: Completed M1 configuration, registry, discovery, CLI, docs, and CI verification (run #27 green on Python 3.12–3.14).
 - 2026-11-03: Started M2 with a transport-free deterministic HTTP decoy engine, bounded strict parser, fixed fabricated routes, and profile/header safety checks. CI run #45 passed 41 tests and Ruff on Python 3.12–3.14.
