@@ -97,13 +97,13 @@ A sandbox implementation is not accepted until automated tests demonstrate:
 
 Tests must run in disposable CI or dedicated test hosts. Do not run destructive escape tests against a developer workstation.
 
-## Current implementation status\n\nThe declarative policy layer is implemented in `src/mirage/sandbox/policy.py` with tests in `tests/test_sandbox_policy.py`. The bounded event codec and per-session sequence guard are implemented in `src/mirage/sandbox/ipc.py` with tests in `tests/test_sandbox_ipc.py`. These components validate policy intent and message framing only. They do not open IPC sockets, run a broker process, or apply namespaces, cgroups, seccomp, VM, or network rules. Passing validation must not be described as an active sandbox.\n\n## Implementation order
+## Current implementation status\n\nThe declarative policy layer is implemented in `src/mirage/sandbox/policy.py`; the bounded event codec and sequence guard are in `src/mirage/sandbox/ipc.py`; and the Linux Unix-socket evidence broker is in `src/mirage/sandbox/worker_broker.py`. The broker validates peer UIDs, private socket permissions, bounded event frames, session binding and sequence order before appending through the evidence store. The CLI entry point is `mirage serve-worker-broker`. Current HTTP/SSH adapters are not yet connected to it, and the default same-UID mode is not a security boundary against compromise of that UID. No namespace launcher, cgroup manager, seccomp filter, disposable VM, or traffic-enforcement runtime has been implemented.\n\n## Implementation order
 
-1. Add a declarative sandbox policy model and validation tests; keep it separate from runtime enforcement.
-2. Build a worker-supervisor IPC contract with bounded messages and evidence-broker ownership.
-3. Select and prototype one Linux isolation mechanism on supported Ubuntu versions.
-4. Add positive and negative namespace, filesystem, syscall, and network-boundary tests.
-5. Move the existing deterministic decoy session handler behind the worker boundary.
+1. [x] Add a declarative sandbox policy model and validation tests; keep it separate from runtime enforcement.
+2. [x] Build a bounded worker-supervisor IPC contract and private Unix-socket evidence broker with broker-owned evidence writes.
+3. Connect HTTP/SSH decoy session handlers to the broker through supervised worker processes.
+4. Select and prototype one Linux isolation mechanism on supported Ubuntu versions.
+5. Add positive and negative namespace, filesystem, syscall, and network-boundary tests.
 6. Add per-session lifecycle, resource quotas, crash handling, and cleanup.
 7. Only after isolation passes, integrate the independent traffic enforcement and selective steering path.
 8. Consider real process execution or disposable VMs only after separate threat review and escape testing.
