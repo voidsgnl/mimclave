@@ -98,3 +98,21 @@ def test_migrate_evidence_uses_environment_token_and_reports_result(
     assert calls["hard_max_segment_bytes"] == 8192
     assert "3 record(s)" in output.out
     assert "test-secret" not in output.out
+
+
+
+def test_worker_broker_cli_requires_socket_and_evidence_paths() -> None:
+    import pytest
+
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["serve-worker-broker"])
+    args = cli.build_parser().parse_args([
+        "serve-worker-broker",
+        "--socket", "var/mirage/worker/broker.sock",
+        "--evidence", "var/mirage/worker-events.jsonl",
+        "--allowed-uid", "1001",
+        "--socket-gid", "1002",
+    ])
+    assert args.command == "serve-worker-broker"
+    assert args.allowed_uid == [1001]
+    assert args.socket_gid == 1002
