@@ -124,7 +124,7 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
             self._execute_exec()
             return
         self._write(
-            "MIRAGE virtual terminal — simulated data only; no host commands execute.\\r\\n"
+            "MIRAGE virtual terminal — simulated data only; no host commands execute.\r\n"
         )
         self._write_prompt()
         self._arm_idle_timeout()
@@ -137,24 +137,24 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
             data = data.decode("utf-8", errors="replace")
         self._arm_idle_timeout()
         for char in data:
-            if char == "\\n" and self._last_was_cr:
+            if char == "\n" and self._last_was_cr:
                 self._last_was_cr = False
                 continue
-            self._last_was_cr = char == "\\r"
-            if char in ("\\r", "\\n"):
+            self._last_was_cr = char == "\r"
+            if char in ("\r", "\n"):
                 self._cancel_line_timeout()
-                self._write("\\r\\n")
+                self._write("\r\n")
                 self._execute_line(self._buffer)
                 self._buffer = ""
                 if self._closed:
                     return
                 if self._commands >= MAX_COMMANDS_PER_SESSION:
-                    self._write("MIRAGE: session command limit reached.\\r\\n")
+                    self._write("MIRAGE: session command limit reached.\r\n")
                     self._finish(0)
                     return
                 self._write_prompt()
                 self._arm_idle_timeout()
-            elif char in ("\\x08", "\\x7f"):
+            elif char in ("\x08", "\x7f"):
                 if self._buffer:
                     self._buffer = self._buffer[:-1]
                     self._write("\\b \\b")
@@ -162,7 +162,7 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
                 if not self._buffer:
                     self._arm_line_timeout()
                 if len(self._buffer) >= MAX_COMMAND_LENGTH:
-                    self._write("\\r\\nmirage: input too long\\r\\n")
+                    self._write("\r\nmirage: input too long\r\n")
                     self._finish(2)
                     return
                 self._buffer += char
@@ -178,7 +178,7 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
     def _execute_exec(self) -> None:
         command = self._exec_command or ""
         if len(command) > MAX_COMMAND_LENGTH:
-            self._write("mirage: input too long\\r\\n")
+            self._write("mirage: input too long\r\n")
             self._finish(2)
             return
         self._execute_line(command)
@@ -211,9 +211,9 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
             return
         self._commands += 1
         if command.strip() == "clear":
-            self._write("\\x1b[2J\\x1b[H")
+            self._write("\x1b[2J\x1b[H")
         elif output:
-            self._write(output + "\\r\\n")
+            self._write(output + "\r\n")
 
     @staticmethod
     def _command_identifier(command: str) -> str:
@@ -263,11 +263,11 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
         self._cancel_line_timeout()
 
     def _on_idle(self) -> None:
-        self._write("\\r\\nMIRAGE: idle session closed.\\r\\n")
+        self._write("\r\nMIRAGE: idle session closed.\r\n")
         self._finish(0)
 
     def _on_line_timeout(self) -> None:
-        self._write("\\r\\nmirage: command input timed out\\r\\n")
+        self._write("\r\nmirage: command input timed out\r\n")
         self._finish(2)
 
     def _finish(self, status: int) -> None:
