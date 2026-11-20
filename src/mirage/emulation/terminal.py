@@ -177,7 +177,7 @@ class VirtualTerminal:
             return "ls: one path at a time"
         target = self._resolve(paths[0]) if paths else self.cwd
         if target is None or target not in _DIRECTORIES:
-            return f"ls: cannot access: No such file or directory"
+            return "ls: cannot access: No such file or directory"
         names = _DIRECTORIES[target]
         if "-l" in options or "-la" in options or "-al" in options:
             return "\n".join(
