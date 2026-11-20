@@ -1,6 +1,6 @@
 # MIRAGE Architecture
 
-## System boundary
+## Product operating model\n\nMIRAGE is intended to run continuously as a system-level Linux service. It observes traffic continuously, preserves normal service for legitimate traffic, and selectively steers suspicious traffic to a fabricated deception plane. The enforcement point must be in place before protected services can return application data; a passive detector that reacts only after a real banner or response has escaped is insufficient. All attacker-controlled interactions stay inside isolated sandboxes. A future tray and desktop dashboard are optional management clients and must never be required for runtime operation. See [Runtime and Adaptive Deception Model](runtime-model.md) for the detailed flow and release gates.\n\n## System boundary
 
 MIRAGE is initially a host-level defensive deception system. It discovers protected services, then presents separately configured decoys to untrusted clients. The protected services and decoy execution plane are separate security domains.
 
@@ -54,3 +54,4 @@ The first implementation should use protocol simulation only. Stronger execution
 - A crash, restart, configuration parse error, or telemetry outage must not expose a protected backend.
 - Unhealthy decoys should stop accepting new sessions rather than fall through to real services.
 - Policy changes should be validated and staged before activation, with rollback support.
+\n\n## Always-on operation and selective deception\n\n- The system daemon owns monitoring, policy evaluation, evidence, and sandbox orchestration; it runs independently of any logged-in desktop session.\n- An independently managed enforcement plane controls the path to protected services. Legitimate traffic follows the configured real-service path; traffic selected by policy is redirected to a compatible decoy before protected application data is returned.\n- A decoy identity is fabricated independently of the protected service and remains coherent throughout a session.\n- Decoy workloads have no route to production services, host credentials, or unrestricted host filesystems.\n- The tray and full dashboard are deferred operator clients. Closing them must not stop monitoring or weaken enforcement.\n
