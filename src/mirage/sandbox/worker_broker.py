@@ -13,8 +13,11 @@ from pathlib import Path
 import socket
 import stat
 import struct
+import time
 from datetime import UTC, datetime
+from ipaddress import ip_address
 import re
+from uuid import UUID
 
 from mirage.sandbox.ipc import (
     MAX_WORKER_MESSAGE_BYTES,
@@ -104,6 +107,7 @@ class UnixWorkerEventBroker:
         self._recent_session_order: deque[str] = deque()
         self._commit_lock = asyncio.Lock()
         self._socket_identity: tuple[int, int] | None = None
+        self._control_socket_identity: tuple[int, int] | None = None
 
     async def start(self) -> None:
         """Start on a private, owner-controlled directory and a private socket."""
@@ -143,6 +147,7 @@ class UnixWorkerEventBroker:
             )
             os.chmod(self.control_socket_path, 0o600, follow_symlinks=False)
             control_info = os.lstat(self.control_socket_path)
+            self._control_socket_identity = (control_info.st_dev, control_info.st_ino)
             if (
                 not stat.S_ISSOCK(control_info.st_mode)
                 or control_info.st_uid != os.geteuid()
@@ -176,12 +181,19 @@ class UnixWorkerEventBroker:
         tasks = tuple(task for task in self._client_tasks if task is not asyncio.current_task())
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-        try:
-            control_info = os.lstat(self.control_socket_path)
-            if stat.S_ISSOCK(control_info.st_mode) and control_info.st_uid == os.geteuid():
-                self.control_socket_path.unlink()
-        except FileNotFoundError:
-            pass
+        control_identity, self._control_socket_identity = self._control_socket_identity, None
+        if control_identity is not None:
+            try:
+                control_info = os.lstat(self.control_socket_path)
+            except FileNotFoundError:
+                pass
+            else:
+                if (
+                    stat.S_ISSOCK(control_info.st_mode)
+                    and control_info.st_uid == os.geteuid()
+                    and (control_info.st_dev, control_info.st_ino) == control_identity
+                ):
+                    self.control_socket_path.unlink()
         identity, self._socket_identity = self._socket_identity, None
         if identity is None:
             return
@@ -293,13 +305,11 @@ class UnixWorkerEventBroker:
             session_id = payload["session_id"]
             if not isinstance(session_id, str):
                 raise WorkerMessageError("session ID must be a UUID")
-            from uuid import UUID
             if str(UUID(session_id)) != session_id.lower():
                 raise WorkerMessageError("session ID must be a canonical UUID")
             protocol = payload["protocol"]
-            if protocol not in {"http", "https", "ssh"}:
+            if not isinstance(protocol, str) or protocol not in {"http", "https", "ssh"}:
                 raise WorkerMessageError("unsupported registered protocol")
-            from ipaddress import ip_address
             source_ip = str(ip_address(payload["source_ip"]))
             source_port = payload["source_port"]
             worker_uid = payload["worker_uid"]
@@ -310,6 +320,11 @@ class UnixWorkerEventBroker:
                 raise WorkerMessageError("registered worker UID is not allowed")
             if isinstance(worker_pid, bool) or not isinstance(worker_pid, int) or worker_pid < 1:
                 raise WorkerMessageError("invalid registered worker PID")
+            now = time.monotonic()
+            self._registrations = {
+                key: value for key, value in self._registrations.items()
+                if float(value["expires_at"]) > now
+            }
             if session_id in self._registrations or session_id in self._recent_session_ids:
                 raise WorkerMessageError("session ID is already registered or has been used")
             if len(self._registrations) >= self.max_clients:
@@ -320,6 +335,7 @@ class UnixWorkerEventBroker:
                 "source_port": source_port,
                 "worker_uid": worker_uid,
                 "worker_pid": worker_pid,
+                "expires_at": now + self.client_idle_timeout,
             }
             writer.write(b'{"registered":true}\n')
             await asyncio.wait_for(writer.drain(), timeout=self.client_idle_timeout)
@@ -434,7 +450,7 @@ class UnixWorkerEventBroker:
                     )
 
                 registration = self._registrations.get(event.session_id)
-                if registration is None:
+                if registration is None or float(registration["expires_at"]) <= time.monotonic():
                     raise WorkerMessageError("worker session registration expired")
                 session_event = self._to_session_event(event, registration)
                 async with self._commit_lock:
