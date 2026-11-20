@@ -5,6 +5,9 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- Added a Linux Unix-domain-socket worker evidence broker and `mirage serve-worker-broker` CLI. The broker uses SO_PEERCRED UID allowlisting, private socket/directory checks, bounded client and message handling, one session per connection, monotonic sequence validation, and broker-only writes to the existing hash-chained evidence store. Optional group-scoped socket access requires explicit worker UIDs and a constrained parent-directory mode. Tests cover accepted and rejected events, peer credentials, sequence handling, socket replacement safety, and group access. CI verification pending. The current protocol transports are not yet wired to this broker, and this is not an OS sandbox.
+
+### Added
 - Added a bounded worker-to-supervisor event IPC contract with strict newline-delimited JSON framing, duplicate/unknown-field rejection, size limits, timestamp/IP/metadata validation, and per-session monotonic sequence enforcement. The codec does not open sockets or grant evidence-file access; a transport and broker process are still future work. GitHub Actions run #377 passed 265 tests, benchmark smoke test, and Ruff on Python 3.12–3.14.
 - Added declarative sandbox policy types for simulation, isolated-worker, and disposable-VM tiers, with bounded resource limits and validation of namespaces, seccomp policy names, privilege restrictions, host-mount/credential prohibitions, and network modes. This is policy modelling only; no namespace, cgroup, seccomp, VM, or traffic-enforcement mechanism is executed yet. Automated tests added; CI verification pending.
 
