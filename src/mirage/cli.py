@@ -41,7 +41,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--host", default="127.0.0.1",
         help="literal loopback address only (default: 127.0.0.1)",
     )
-    serve.add_argument("--port", type=int, default=8080, help="TCP port (default: 8080; 0 selects a free port)")
+    serve.add_argument(
+        "--port", type=int, default=8080,
+        help="TCP port (default: 8080; 0 selects a free port)",
+    )
     serve.add_argument(
         "--evidence", type=Path, default=Path("mirage-evidence.jsonl"),
         help="append-only evidence file (default: ./mirage-evidence.jsonl)",
@@ -51,7 +54,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     migrate.add_argument("source", type=Path, help="legacy JSONL evidence file")
     migrate.add_argument("destination", type=Path, help="new segmented evidence directory")
-    migrate.add_argument("--checkpoint-url", required=True, help="HTTPS checkpoint resource URL")
+    migrate.add_argument(
+        "--checkpoint-url", required=True, help="HTTPS checkpoint resource URL"
+    )
     migrate.add_argument(
         "--token-env", default="MIRAGE_CHECKPOINT_TOKEN",
         help="environment variable containing the checkpoint bearer token",
@@ -174,7 +179,9 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             print("\nMIRAGE HTTP decoy stopped.", flush=True)
             return 130
-        except (ConfigLoadError, EvidenceStoreError, OSError, ValueError, RuntimeError) as exc:
+        except (
+            ConfigLoadError, EvidenceStoreError, OSError, ValueError, RuntimeError
+        ) as exc:
             print(f"HTTP decoy failed: {exc}", file=sys.stderr)
             return 2
         return 0
