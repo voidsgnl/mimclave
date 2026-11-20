@@ -86,6 +86,8 @@ class VirtualTerminal:
     hostname: str = VIRTUAL_HOSTNAME
     username: str = VIRTUAL_USER
     cwd: str = "/var/www"
+    previous_cwd: str | None = None
+
     def execute(self, line: str) -> str:
         """Interpret one allowlisted command without evaluating host shell syntax."""
         if not isinstance(line, str) or not line.strip():
@@ -148,9 +150,9 @@ class VirtualTerminal:
             else posixpath.join(self.cwd, requested)
         )
         normalized = posixpath.normpath(candidate)
-        if not normalized.startswith("/") or normalized == "/..":
-            return None
-        if any(part == ".." for part in requested.split("/")):
+        # normpath resolves "." and ".." while keeping absolute paths rooted
+        # at the simulated filesystem's "/" (it never consults the host FS).
+        if not normalized.startswith("/") or normalized.startswith("//"):
             return None
         return normalized
 
@@ -158,10 +160,18 @@ class VirtualTerminal:
         if len(args) > 1:
             return "cd: expected at most one path"
         target = args[0] if args else "/var/www"
+        if target == "-":
+            if self.previous_cwd is None:
+                return "cd: OLDPWD not set"
+            self.cwd, self.previous_cwd = self.previous_cwd, self.cwd
+            return self.cwd
+
         resolved = self._resolve(target)
         if resolved not in _DIRECTORIES:
             return f"cd: {target}: No such file or directory"
-        self.cwd = resolved
+        if resolved != self.cwd:
+            self.previous_cwd = self.cwd
+            self.cwd = resolved
         return ""
 
     def _list_directory(self, args: list[str]) -> str:
