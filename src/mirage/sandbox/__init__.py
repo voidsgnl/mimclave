@@ -1,5 +1,14 @@
-"""Sandbox policy models and validation."""
+"""Sandbox policy and worker IPC contracts."""
 
+from mirage.sandbox.ipc import (
+    MAX_ACTIVE_WORKER_SESSIONS,
+    MAX_WORKER_MESSAGE_BYTES,
+    WorkerEvent,
+    WorkerEventSequenceGuard,
+    WorkerMessageError,
+    decode_worker_event,
+    encode_worker_event,
+)
 from mirage.sandbox.policy import (
     NetworkMode,
     SandboxLimits,
@@ -10,10 +19,17 @@ from mirage.sandbox.policy import (
 )
 
 __all__ = [
+    "MAX_ACTIVE_WORKER_SESSIONS",
+    "MAX_WORKER_MESSAGE_BYTES",
     "NetworkMode",
     "SandboxLimits",
     "SandboxPolicy",
     "SandboxPolicyIssue",
     "SandboxTier",
+    "WorkerEvent",
+    "WorkerEventSequenceGuard",
+    "WorkerMessageError",
+    "decode_worker_event",
+    "encode_worker_event",
     "validate_sandbox_policy",
 ]
