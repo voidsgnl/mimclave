@@ -141,3 +141,29 @@ def test_policy_identifier_and_namespace_names_are_validated() -> None:
         "invalid_seccomp_profile",
         "missing_namespaces",
     }.issubset(codes(policy))
+
+
+def test_unknown_network_mode_is_rejected_for_worker() -> None:
+    policy = SandboxPolicy(
+        policy_id="worker",
+        tier=SandboxTier.ISOLATED_WORKER,
+        namespaces=("user", "mount", "pid", "ipc", "uts", "net"),
+        seccomp_profile="worker",
+        network_mode="allow_all",  # type: ignore[arg-type]
+    )
+    assert "unknown_network_mode" in codes(policy)
+
+
+def test_malformed_namespace_and_policy_types_return_issues() -> None:
+    policy = SandboxPolicy(
+        policy_id=None,  # type: ignore[arg-type]
+        tier=SandboxTier.ISOLATED_WORKER,
+        namespaces=("user", None),  # type: ignore[arg-type]
+        seccomp_profile=123,  # type: ignore[arg-type]
+    )
+    assert {
+        "invalid_policy_id",
+        "invalid_namespace_name",
+        "missing_namespaces",
+        "invalid_seccomp_profile",
+    }.issubset(codes(policy))
