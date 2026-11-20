@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import socket
 import stat
+import struct
 from datetime import datetime
 from typing import Any
 
@@ -42,7 +43,14 @@ class UnixWorkerEventBroker:
         allowed_uids: set[int] | None = None,
         max_clients: int = MAX_BROKER_CLIENTS,
     ) -> None:
-        self.socket_path = Path(socket_path)
+        requested_path = Path(socket_path)
+        if requested_path.name in {"", ".", ".."}:
+            raise ValueError("worker socket path must include a filename")
+        try:
+            resolved_parent = requested_path.parent.resolve(strict=True)
+        except OSError as exc:
+            raise WorkerBrokerError("worker socket parent directory must already exist") from exc
+        self.socket_path = resolved_parent / requested_path.name
         self.evidence_store = evidence_store
         self.allowed_uids = frozenset(
             {os.geteuid()} if allowed_uids is None else allowed_uids
@@ -135,6 +143,15 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError(
                 "refusing to replace an existing non-private or non-socket IPC path"
             )
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            if probe.connect_ex(str(self.socket_path)) == 0:
+                raise WorkerBrokerError("another worker event broker is already listening")
+        finally:
+            probe.close()
+        current = os.lstat(self.socket_path)
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise WorkerBrokerError("worker socket path changed during stale-socket check")
         self.socket_path.unlink()
 
     def _peer_uid(self, writer: asyncio.StreamWriter) -> int:
@@ -143,7 +160,7 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError("Linux SO_PEERCRED is required for worker authentication")
         try:
             credentials = peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
-            _, uid, _ = __import__("struct").unpack("3i", credentials)
+            _, uid, _ = struct.unpack("3i", credentials)
         except OSError as exc:
             raise WorkerBrokerError("could not authenticate worker peer credentials") from exc
         if uid not in self.allowed_uids:
