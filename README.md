@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive platform designed to place controlled deceptio
 
 ## Project status
 
-M1 configuration and read-only discovery and M2 safe HTTP/HTTPS simulation are implemented; transports remain restricted to loopback and require an explicitly provisioned TLS context. M3 now includes the legacy hash-chained JSONL store, the segmented evidence store with checkpoint-anchored rotation and operator-approved retirement, verified export, a non-destructive legacy migration API and CLI, and an HTTPS checkpoint client. GitHub Actions run #257 passed 134 tests and Ruff on Python 3.12–3.14. A SQLite-backed checkpoint service with hash-chained history and systemd/Caddy deployment examples is included, but it has not been deployed or independently audited; it must run on a separate host to provide an independent anchor. No production traffic interception, isolated sandbox execution, or management dashboard is implemented. Do not deploy MIRAGE in front of production services.
+M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the M3 evidence pipeline are implemented. The first runnable local prototype now includes `mirage serve-http`: it starts a configured HTTP decoy on a loopback address, records each served request to the hash-chained JSONL evidence store before sending the response, and can verify that evidence with `mirage verify-evidence`. This is a local end-to-end demonstration, not production interception. The existing transports remain loopback-only; HTTPS requires an explicitly provisioned TLS context. M3 also includes segmented evidence storage, checkpoint-anchored rotation, verified export, non-destructive migration, an HTTPS checkpoint client, and a SQLite-backed checkpoint service. The checkpoint service has not been deployed or independently audited. Production traffic interception, isolated sandbox execution, and a management dashboard are not implemented. Do not deploy MIRAGE in front of production services.
 
 ## Core principles
 
@@ -35,7 +35,31 @@ See [Roadmap & Handoff](ROADMAP.md), [Architecture](docs/architecture.md), [Requ
 
 ## Development
 
-Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest` and `ruff check .`. Use `mirage validate-config config/example.toml` to validate a configuration and `mirage discover` (or `python -m mirage discover`) to list locally visible TCP listeners and bound UDP sockets as JSON. The explicit `mirage migrate-evidence` command migrates a legacy evidence log after an independently hosted HTTPS checkpoint service has been configured; its bearer token is read from `MIRAGE_CHECKPOINT_TOKEN`, never from a command-line argument. See [Evidence Segments](docs/evidence-segments.md) for migration and recovery instructions. UDP entries are bound-socket observations, not proof that an application-level service is responsive. Configuration validation and discovery are offline/read-only; network interception and sandbox execution are not implemented.
+Python 3.12+ is required. Install development dependencies with `python -m pip install -e '.[dev]'`, then run `pytest` and `ruff check .`.
+
+### Run the local HTTP prototype
+
+In one terminal:
+
+```bash
+mirage validate-config config/prototype-http.toml
+mirage serve-http config/prototype-http.toml --profile-id local-web --host 127.0.0.1 --port 8080 --evidence ./var/mirage/events.jsonl
+```
+
+In another terminal, interact with the decoy:
+
+```bash
+curl -i http://127.0.0.1:8080/
+curl -i http://127.0.0.1:8080/login
+```
+
+Stop the server with Ctrl+C, then verify the recorded chain:
+
+```bash
+mirage verify-evidence ./var/mirage/events.jsonl
+```
+
+The prototype binds only to a literal loopback IP. It does not forward requests to a protected service, alter firewall rules, expose a public listener, or execute submitted commands. Use the separate `config/prototype-http.toml` example rather than the illustrative HTTPS configuration. `mirage discover` lists locally visible TCP listeners and bound UDP sockets as JSON; UDP entries are bound-socket observations, not proof that an application-level service is responsive. The explicit `mirage migrate-evidence` command migrates a legacy log after an independently hosted HTTPS checkpoint service has been configured; its bearer token is read from `MIRAGE_CHECKPOINT_TOKEN`, never from a command-line argument. See [Evidence Segments](docs/evidence-segments.md) for migration and recovery instructions.
 
 ## Safety
 
