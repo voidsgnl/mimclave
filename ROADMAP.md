@@ -275,7 +275,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - Added a second private Unix-domain socket for supervisor-only session registration, separate from the worker event socket.
 - Registration binds the session UUID to protocol, original client source IP/port, worker UID and worker PID. The broker authenticates the control peer with `SO_PEERCRED`, then verifies the worker's own PID/UID and protocol before accepting its first event.
 - Registrations expire, are single-claim, and are removed when the worker connection closes. The broker records only supervisor-supplied source metadata and still owns evidence writes.
-- The supervisor registration codec and broker API are foundations only: HTTP/SSH listeners do not yet register their accepted sockets or launch supervised workers. A same-UID development setup is not a security boundary against compromise of that UID. CI/local verification is pending.
+- The supervisor registration codec and broker API are foundations only: HTTP/SSH listeners do not yet register their accepted sockets or launch supervised workers. A same-UID development setup is not a security boundary against compromise of that UID. GitHub Actions run #449 passed 286 tests, the evidence benchmark smoke test, and Ruff on Python 3.12, 3.13, and 3.14. Local Ubuntu verification remains pending.
 
 ### Session intelligence delivered
 - Added `mirage inspect-sessions <evidence.jsonl>`, which verifies the complete JSONL hash chain before grouping events into heuristic activity clusters.
