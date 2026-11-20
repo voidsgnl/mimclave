@@ -64,7 +64,7 @@ def test_ssh_exec_uses_virtual_terminal_and_persists_redacted_event(tmp_path) ->
                 client_keys=[],
                 agent_path=None,
             ) as connection:
-                result = await connection.run("cat /etc/passwd", check=True)
+                result = await connection.run("cat /etc/passwd", check=True, timeout=5)
             assert "www-data" in result.stdout
             assert events
             assert events[0].event_type == "ssh.command"
@@ -97,25 +97,25 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
                 agent_path=None,
             ) as connection:
                 first = await connection.create_process(term_type="xterm")
-                await first.stdout.readuntil("$ ")
+                await asyncio.wait_for(first.stdout.readuntil("$ "), timeout=5)
                 first.stdin.write("cd /home/deploy\\n")
                 await first.stdin.drain()
-                first_prompt = await first.stdout.readuntil("$ ")
+                first_prompt = await asyncio.wait_for(first.stdout.readuntil("$ "), timeout=5)
                 assert "/home/deploy$ " in first_prompt
 
                 second = await connection.create_process(term_type="xterm")
-                await second.stdout.readuntil("$ ")
+                await asyncio.wait_for(second.stdout.readuntil("$ "), timeout=5)
                 second.stdin.write("pwd\\n")
                 await second.stdin.drain()
-                second_output = await second.stdout.readuntil("$ ")
+                second_output = await asyncio.wait_for(second.stdout.readuntil("$ "), timeout=5)
                 assert "/var/www" in second_output
 
                 first.stdin.write("exit\\n")
                 second.stdin.write("exit\\n")
                 await first.stdin.drain()
                 await second.stdin.drain()
-                await first.wait_closed()
-                await second.wait_closed()
+                await asyncio.wait_for(first.wait_closed(), timeout=5)
+                await asyncio.wait_for(second.wait_closed(), timeout=5)
             assert [event.path for event in events] == [
                 "/terminal/cd",
                 "/terminal/pwd",
@@ -149,7 +149,7 @@ def test_ssh_evidence_failure_sends_no_command_output(tmp_path) -> None:
                 client_keys=[],
                 agent_path=None,
             ) as connection:
-                result = await connection.run("whoami", check=False)
+                result = await connection.run("whoami", check=False, timeout=5)
             assert result.stdout == ""
             assert result.exit_status == 1
         finally:
