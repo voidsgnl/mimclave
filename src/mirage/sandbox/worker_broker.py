@@ -5,6 +5,7 @@ evidence store. This is an IPC transport prototype, not an OS sandbox.
 """
 
 import asyncio
+import errno
 import json
 import os
 from pathlib import Path
@@ -177,10 +178,15 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError("existing worker socket has unexpected group ownership")
         probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
-            if probe.connect_ex(str(self.socket_path)) == 0:
-                raise WorkerBrokerError("another worker event broker is already listening")
+            probe_result = probe.connect_ex(str(self.socket_path))
         finally:
             probe.close()
+        if probe_result == 0:
+            raise WorkerBrokerError("another worker event broker is already listening")
+        if probe_result != errno.ECONNREFUSED:
+            raise WorkerBrokerError(
+                "could not prove that the existing worker socket is stale; refusing to replace it"
+            )
         current = os.lstat(self.socket_path)
         if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
             raise WorkerBrokerError("worker socket path changed during stale-socket check")
