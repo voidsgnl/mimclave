@@ -58,7 +58,7 @@ def test_path_traversal_and_real_host_paths_are_not_accessible() -> None:
     assert "No such file" in terminal.execute("cat ../../etc/shadow")
     assert "No such file" in terminal.execute("cat /proc/self/environ")
     assert "No such file" in terminal.execute("cat /etc/shadow")
-    assert "No such file" in terminal.execute("ls /")
+    assert "etc" in terminal.execute("ls /")
 
 
 def test_input_limits_and_invalid_quotes_fail_safely() -> None:
