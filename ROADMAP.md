@@ -149,11 +149,19 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - [ ] Deploy the service on a separate, independently administered host; validate TLS termination, token storage, backup/restore, monitoring, and access controls before calling it an independent production anchor.
 
 ## Resume here — exact next steps
-1. Deploy or integrate an independently administered checkpoint service implementing the HTTPS API in `docs/evidence-storage.md`; configure its secret outside source control and verify its durability/backup/authorization controls.
-2. Segmented rotation/retention and migration are implemented in `src/mirage/telemetry/segmented.py`; design and operator guidance are in `docs/evidence-segments.md`. Sealed segments are verified on every append by default (`verify_sealed_on_append=True`); anchor history is deferred; segment size limits require explicit configuration; event-ID reuse across retired segments is an accepted limitation. CI run #238 passed 130 tests and Ruff on Python 3.12–3.14, including targeted crash tests for initialization, append, rotation, retirement, and migration plus checkpoint-prefix edge cases. Remaining: exhaustive crash-boundary coverage, target-Linux benchmarks, and deployment of an independent checkpoint service. Automatic pruning/deletion remains operator-approved only.
-3. Run `python scripts/benchmark_evidence_store.py --events 1000` (and larger representative sizes) on target Linux storage; record results before considering indexing, bounded async batching, disabling `verify_sealed_on_append`, or choosing segment size defaults.
-4. Keep public binding, production traffic interception, and decoy execution out of scope until isolation and independent fail-closed enforcement are implemented and tested.
-5. Update this roadmap and CHANGELOG after each meaningful change.
+1. Validate the runnable local HTTP prototype on Python 3.12–3.14: run the full test suite and Ruff, then exercise the documented `serve-http` → `curl` → `verify-evidence` workflow on Ubuntu. The prototype must remain loopback-only.
+2. Add an operator-friendly session inspection/export command so recorded interactions can be reviewed without manually parsing JSONL. Keep request bodies, passwords, cookies, authorization headers, and query strings out of evidence.
+3. Build the first deterministic interactive decoy environment (fake users, files, processes, and command responses) without executing arbitrary host commands. Every interaction must be recorded before its response is returned.
+4. Design and test the isolation boundary before any real process execution: separate namespaces/cgroups, default-deny egress, no host mounts or credentials, resource limits, and a disposable-VM tier for higher-risk work.
+5. Implement independent fail-closed network enforcement only after isolation tests exist. No production interception or public listener until crash, telemetry-outage, rollback, and bypass tests prove protected services cannot be exposed.
+6. Deploy and independently validate the checkpoint service on a separately administered host before treating it as an independent evidence anchor. Continue target-Linux evidence benchmarks and exhaustive crash-boundary tests.
+7. Update this roadmap and CHANGELOG after each meaningful change.
+
+## Local prototype milestone — 2026-11-20
+- Added `mirage serve-http`, a runnable HTTP-only local decoy command. It validates the selected profile, refuses non-loopback bind addresses, uses the existing deterministic HTTP emulator, and appends each successful interaction to the hash-chained JSONL evidence store before returning the response.
+- Added `mirage verify-evidence` for operator verification of the local JSONL evidence chain.
+- Added `config/prototype-http.toml` and end-to-end tests covering an actual loopback request, evidence persistence, query-string exclusion, non-loopback rejection, HTTPS-profile rejection, and unmapped-profile rejection.
+- This is a local demonstration only. It does not intercept production traffic, forward to protected services, modify firewall rules, or execute arbitrary commands. CI verification is pending.
 
 ## Handoff log
 - 2026-11-03: Created durable roadmap/handoff with architecture decisions, milestones, and resume steps.
