@@ -96,22 +96,22 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
                 client_keys=[],
                 agent_path=None,
             ) as connection:
-                first = await connection.create_process(term_type="xterm")
+                first = await connection.create_process()
                 await asyncio.wait_for(first.stdout.readuntil("$ "), timeout=5)
-                first.stdin.write("cd /home/deploy\\r")
+                first.stdin.write("cd /home/deploy\\n")
                 await first.stdin.drain()
                 first_prompt = await asyncio.wait_for(first.stdout.readuntil("$ "), timeout=5)
                 assert "/home/deploy$ " in first_prompt
 
                 second = await connection.create_process(term_type="xterm")
                 await asyncio.wait_for(second.stdout.readuntil("$ "), timeout=5)
-                second.stdin.write("pwd\\r")
+                second.stdin.write("pwd\\n")
                 await second.stdin.drain()
                 second_output = await asyncio.wait_for(second.stdout.readuntil("$ "), timeout=5)
                 assert "/var/www" in second_output
 
-                first.stdin.write("exit\\r")
-                second.stdin.write("exit\\r")
+                first.stdin.write("exit\\n")
+                second.stdin.write("exit\\n")
                 await first.stdin.drain()
                 await second.stdin.drain()
                 await asyncio.wait_for(first.wait_closed(), timeout=5)
