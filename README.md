@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive monitoring and adaptive-deception platform int
 
 ## Project status
 
-M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the M3 evidence pipeline are implemented. The runnable local prototype includes `mirage serve-http` and an experimental `mirage serve-ssh` adapter for the in-memory terminal. Both are restricted to loopback and record interactions to hash-chained JSONL evidence before returning simulated output. SSH support is optional and is not production-ready. The existing transports remain loopback-only; HTTPS requires an explicitly provisioned TLS context. M3 also includes segmented evidence storage, checkpoint-anchored rotation, verified export, non-destructive migration, an HTTPS checkpoint client, and a SQLite-backed checkpoint service. The checkpoint service has not been deployed or independently audited. Production traffic interception, selective steering, hardened sandbox execution, independent fail-closed enforcement, and the system daemon lifecycle are not implemented. A declarative sandbox policy model and bounded worker-event message codec now exist, but no IPC transport, evidence-broker process, or sandbox runtime applies those policies. The tray and full desktop dashboard are intentionally deferred until the core runtime is working and security-tested. Do not deploy MIRAGE in front of production services.
+M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the M3 evidence pipeline are implemented. The runnable local prototype includes `mirage serve-http` and an experimental `mirage serve-ssh` adapter for the in-memory terminal. Both are restricted to loopback and record interactions to hash-chained JSONL evidence before returning simulated output. SSH support is optional and is not production-ready. The existing transports remain loopback-only; HTTPS requires an explicitly provisioned TLS context. M3 also includes segmented evidence storage, checkpoint-anchored rotation, verified export, non-destructive migration, an HTTPS checkpoint client, and a SQLite-backed checkpoint service. The checkpoint service has not been deployed or independently audited. Production traffic interception, selective steering, hardened sandbox execution, independent fail-closed enforcement, and the system daemon lifecycle are not implemented. A declarative sandbox policy model, bounded worker-event message codec, and private Unix-socket evidence broker now exist. The broker validates worker UIDs and events before writing to the hash-chained evidence store. No isolated worker process or sandbox runtime is connected yet. The tray and full desktop dashboard are intentionally deferred until the core runtime is working and security-tested. Do not deploy MIRAGE in front of production services.
 
 ## Intended operating model\n\nMIRAGE is designed to monitor continuously in the background. Ordinary traffic should continue to its protected service under policy; traffic classified for deception should be diverted to a separate, fabricated environment. All attacker-controlled interaction remains sandboxed. The monitoring daemon must continue working when the tray or dashboard is closed. See [Runtime and Adaptive Deception Model](docs/runtime-model.md) for the design and security release gates.\n\n## Core principles
 
@@ -122,6 +122,25 @@ interpreter. Port forwarding, SFTP, agent forwarding, and X11 are disabled.
 It is an experimental local prototype, not an isolated sandbox or a public
 honeypot. **Do not expose it beyond loopback.** See [SSH Decoy](docs/ssh-decoy.md)
 for its limits and security boundaries.
+
+
+### Sandbox worker evidence broker (IPC prototype)
+
+The worker evidence broker is a separate process boundary for future isolated decoy workers. It accepts bounded newline-delimited event messages over a private Linux Unix-domain socket, checks peer credentials with `SO_PEERCRED`, validates one session per connection and strictly increasing event sequence numbers, then writes accepted events through the existing hash-chained evidence store. Workers do not receive an evidence-file path or direct write access.
+
+Create a private socket directory and start the broker:
+
+```bash
+install -d -m 700 var/mirage/worker
+
+./.venv/bin/mirage serve-worker-broker \
+  --socket var/mirage/worker/broker.sock \
+  --evidence var/mirage/worker-events.jsonl
+```
+
+The default socket is mode `0600` and accepts connections only from the broker's effective UID. A separately provisioned worker group can use `--socket-gid` with one or more explicit `--allowed-uid` values; in that mode the parent directory must be owned by the broker UID, match the configured group, and use owner `rwx`, group execute-only, and no world permissions. The broker refuses to replace an active socket or an unexpected filesystem object.
+
+This milestone provides a usable broker endpoint and message contract, **not an isolated worker**. No current HTTP/SSH transport sends events through this broker yet; those prototypes still append directly to their evidence store. The default same-UID development mode is not a security boundary against compromise of that UID. Do not treat this IPC service as proof of sandbox isolation or expose it on a network socket.
 
 ### Inspect recorded activity
 
