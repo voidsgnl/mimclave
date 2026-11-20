@@ -252,3 +252,35 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 
 
 - 2026-11-09: Implemented the SQLite-backed checkpoint service with conditional ETag GET/PUT, serialized durable CAS updates, an append-only hash-chained checkpoint history, strict request validation, loopback-only binding, and high-entropy bearer-token requirements. Added systemd and Caddy deployment examples. CI run #277 passed **146 tests and Ruff on Python 3.12, 3.13, and 3.14**. The service is not deployed or independently audited; it must be installed on a separate host and backed up independently before it provides operational independence.
+
+
+## Latest handoff — 2026-11-20
+
+### Session intelligence delivered
+- Added `mirage inspect-sessions <evidence.jsonl>`, which verifies the complete JSONL hash chain before grouping events into heuristic activity clusters.
+- Reports source/profile, first and last seen, route/status counts, timelines, and conservative triage indicators. Clusters are not authenticated sessions or identity attribution.
+- The user successfully exercised this against four local HTTP requests. One cluster was reported with no indicators; the browser's `/favicon.ico` 404 was an ordinary missing-icon request.
+
+### Initial virtual terminal simulator delivered
+- Added `src/mirage/emulation/terminal.py` and `mirage simulate-terminal`.
+- The interpreter uses only fabricated in-memory files, users, and process output. Supported commands: `help`, `whoami`, `hostname`, `pwd`, `id`, `uname`, `ls`, `cat`, `ps`, `cd`, and `clear`.
+- Strictly rejects shell operators, redirects, pipes, expansions, traversal, excessive input, unsupported options, and unknown commands. No shell, subprocess, host filesystem, or network calls.
+- This is a local simulator only. Do not describe it as a network-accessible interactive honeypot yet. The next step is a separately bounded protocol adapter (likely SSH) with per-connection virtual terminal state and redacted, hash-chained interaction events, followed by transport-specific isolation and resource limits.
+
+### CI blocker — investigate before release
+- The latest `main` head before the virtual-terminal work was `0c44fcfdd74bba21b6518781c65e36d37a3231b7`.
+- GitHub Actions run #302 (run ID `44775072812`) reported failure for all three Python matrix jobs. The job summaries returned no step data, and downloading job logs returned `BlobNotFound`; therefore the actual failure cause is unknown. Do not infer a source-code failure or claim CI is green.
+- Previous successful CI run recorded in the historical log was #277. The failures across all matrix versions and near-immediate completion may indicate a runner/setup issue, but this remains unverified.
+- No local checkout was available to execute pytest or Ruff during this session. After pulling the latest `main`, run:
+  ```bash
+  python -m pip install -e '.[dev]'
+  python -m pytest -q
+  python -m ruff check .
+  ```
+- If local tests pass, rerun or inspect the GitHub Actions workflow and obtain job-level logs before relying on CI.
+
+### Current boundary and next work
+- Current verified prototype: loopback HTTP decoy, hash-chained evidence, evidence verification, heuristic session inspection, and local in-memory terminal simulation.
+- Still not implemented: network-facing interactive terminal protocol, production traffic interception, independent enforcement, isolated sandbox execution, remote interaction evidence capture for terminal sessions, management API/dashboard, and production deployment.
+- Preserve the local evidence log; never overwrite or silently reset it.
+- Continue on `main`; do not create branches unless explicitly requested.
