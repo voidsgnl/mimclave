@@ -47,10 +47,30 @@ def test_cd_dash_returns_to_previous_virtual_directory() -> None:
     assert terminal.execute("pwd") == "/home/deploy"
 
 
-def test_relative_parent_paths_resolve_only_inside_virtual_filesystem() -> None:
+def test_relative_parent_paths_resolve_inside_virtual_filesystem() -> None:
     terminal = VirtualTerminal()
     assert "Deployment notes" in terminal.execute("cat ../../home/deploy/README.txt")
-    assert "No such file" in terminal.execute("cat ../../etc/shadow")
+    assert "Permission denied" in terminal.execute("cat ../../etc/shadow")
+
+
+def test_restricted_system_files_exist_but_are_not_readable_by_www_data() -> None:
+    terminal = VirtualTerminal()
+    listing = terminal.execute("ls /etc")
+    assert "shadow" in listing
+    assert "gshadow" in listing
+    assert "Permission denied" in terminal.execute("cat /etc/shadow")
+    assert "Permission denied" in terminal.execute("cat /etc/gshadow")
+    long_listing = terminal.execute("ls -l /etc")
+    assert "-rw-r----- 1 root shadow" in long_listing
+
+
+def test_root_home_is_present_but_access_is_denied() -> None:
+    terminal = VirtualTerminal()
+    assert "root" in terminal.execute("ls /")
+    assert "Permission denied" in terminal.execute("cd /root")
+    assert "Permission denied" in terminal.execute("ls /root")
+    assert "Permission denied" in terminal.execute("cat /root/.bash_history")
+    assert terminal.execute("pwd") == "/var/www"
 
 
 def test_virtual_listing_and_process_table_are_deterministic() -> None:
@@ -83,7 +103,7 @@ def test_path_traversal_and_real_host_paths_are_not_accessible() -> None:
     terminal = VirtualTerminal()
     assert "No such file" in terminal.execute("cat ../../etc/shadow")
     assert "No such file" in terminal.execute("cat /proc/self/environ")
-    assert "No such file" in terminal.execute("cat /etc/shadow")
+    assert "Permission denied" in terminal.execute("cat /etc/shadow")
     assert "etc" in terminal.execute("ls /")
 
 
