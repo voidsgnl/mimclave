@@ -40,8 +40,9 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
             assert stat.S_ISSOCK(info.st_mode)
             assert stat.S_IMODE(info.st_mode) == 0o600
 
-            reader, writer = await asyncio.open_unix_connection(socket_path)
             event = make_event(str(uuid4()))
+            await register_session(socket_path, event.session_id)
+            reader, writer = await asyncio.open_unix_connection(socket_path)
             writer.write(encode_worker_event(event))
             await writer.drain()
             ack = json.loads(await reader.readline())
@@ -58,8 +59,8 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
             assert stored["path"] == "/login"
             assert stored["event_type"] == "http.request"
             assert stored["profile_id"] == "web-decoy"
-            assert stored["source_ip"] is None
-            assert stored["source_port"] is None
+            assert stored["source_ip"] == "198.51.100.44"
+            assert stored["source_port"] == 45678
             assert stored["occurred_at"] != event.timestamp
         finally:
             await broker.close()
@@ -78,8 +79,10 @@ def test_broker_rejects_wrong_peer_uid(tmp_path: Path) -> None:
         )
         await broker.start()
         try:
+            event = make_event(str(uuid4()))
+            await register_session(socket_path, event.session_id, worker_uid=os.geteuid() + 1)
             reader, writer = await asyncio.open_unix_connection(socket_path)
-            writer.write(encode_worker_event(make_event(str(uuid4()))))
+            writer.write(encode_worker_event(event))
             await writer.drain()
             response = json.loads(await reader.readline())
             assert response["accepted"] is False
@@ -99,8 +102,10 @@ def test_broker_rejects_multiple_sessions_on_one_connection(tmp_path: Path) -> N
         broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
         await broker.start()
         try:
+            first_event = make_event(str(uuid4()))
+            await register_session(socket_path, first_event.session_id)
             reader, writer = await asyncio.open_unix_connection(socket_path)
-            writer.write(encode_worker_event(make_event(str(uuid4()))))
+            writer.write(encode_worker_event(first_event))
             await writer.drain()
             assert json.loads(await reader.readline())["accepted"] is True
             writer.write(encode_worker_event(make_event(str(uuid4()))))
@@ -124,6 +129,7 @@ def test_broker_rejects_invalid_sequence_without_persisting(tmp_path: Path) -> N
         try:
             reader, writer = await asyncio.open_unix_connection(socket_path)
             session = str(uuid4())
+            await register_session(socket_path, session)
             writer.write(encode_worker_event(make_event(session, sequence=2)))
             await writer.drain()
             assert json.loads(await reader.readline())["accepted"] is False
@@ -207,8 +213,9 @@ def test_broker_supports_explicit_worker_group_socket_permissions(tmp_path: Path
             info = os.lstat(socket_path)
             assert info.st_gid == os.getegid()
             assert stat.S_IMODE(info.st_mode) == 0o660
-            reader, writer = await asyncio.open_unix_connection(socket_path)
             event = make_event(str(uuid4()))
+            await register_session(socket_path, event.session_id)
+            reader, writer = await asyncio.open_unix_connection(socket_path)
             writer.write(encode_worker_event(event))
             await writer.drain()
             assert json.loads(await reader.readline())["accepted"] is True
@@ -270,6 +277,7 @@ def test_broker_rejects_reuse_of_a_recently_closed_session_id(tmp_path: Path) ->
         await broker.start()
         session_id = str(uuid4())
         try:
+            await register_session(socket_path, session_id)
             reader, writer = await asyncio.open_unix_connection(socket_path)
             writer.write(encode_worker_event(make_event(session_id)))
             await writer.drain()
