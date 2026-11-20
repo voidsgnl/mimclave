@@ -1,7 +1,7 @@
 """Loopback-only SSH transport for the in-memory virtual terminal.
 
-The optional AsyncSSH dependency handles SSH protocol and cryptography. This
-adapter never invokes a host shell, reads host files, or enables forwarding.
+AsyncSSH handles SSH protocol and cryptography. MIRAGE handles terminal input
+through a bounded callback and never invokes a host shell or filesystem.
 """
 
 import asyncio
@@ -20,14 +20,15 @@ from mirage.emulation.terminal import MAX_COMMAND_LENGTH, VirtualTerminal
 from mirage.telemetry.events import SessionEvent, SessionEventFactory
 
 MAX_COMMANDS_PER_SESSION = 100
-COMMAND_IDLE_TIMEOUT = 30.0
+COMMAND_TIMEOUT = 30.0
 PROMPT = "{username}@{hostname}:{cwd}$ "
 
 _SSH_BASE = asyncssh.SSHServer if asyncssh is not None else object
+_SESSION_BASE = asyncssh.SSHServerSession if asyncssh is not None else object
 
 
 class _NoAuthSSHServer(_SSH_BASE):  # type: ignore[misc,valid-type]
-    """Accept a connection without asking for credentials; deny all forwarding."""
+    """Accept SSH sessions without credentials and deny forwarding."""
 
     def __init__(self, owner: "SSHDecoyServer") -> None:
         self._owner = owner
@@ -49,6 +50,12 @@ class _NoAuthSSHServer(_SSH_BASE):  # type: ignore[misc,valid-type]
         del username
         return False
 
+    def session_requested(self) -> object:
+        if self._owner._active_sessions >= self._owner.max_sessions:
+            return False
+        self._owner._active_sessions += 1
+        return _VirtualTerminalSession(self._owner)
+
     def connection_requested(self, *args: object) -> bool:
         del args
         return False
@@ -66,8 +73,211 @@ class _NoAuthSSHServer(_SSH_BASE):  # type: ignore[misc,valid-type]
         return False
 
 
+class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
+    """A callback-driven SSH session with bounded input and private virtual state."""
+
+    def __init__(self, owner: "SSHDecoyServer") -> None:
+        self._owner = owner
+        self._channel = None
+        self._terminal = VirtualTerminal()
+        self._events = SessionEventFactory(owner.profile_id)
+        self._mode: str | None = None
+        self._exec_command: str | None = None
+        self._buffer = ""
+        self._last_was_cr = False
+        self._commands = 0
+        self._source_ip: str | None = None
+        self._source_port: int | None = None
+        self._idle_handle: asyncio.TimerHandle | None = None
+        self._line_handle: asyncio.TimerHandle | None = None
+        self._closed = False
+
+    def connection_made(self, channel: object) -> None:
+        self._channel = channel
+        peer = channel.get_extra_info("peername")  # type: ignore[attr-defined]
+        if isinstance(peer, tuple) and peer:
+            self._source_ip = str(peer[0])
+            self._source_port = int(peer[1]) if len(peer) > 1 else None
+
+    def pty_requested(
+        self, term_type: str, term_size: tuple[int, int, int, int],
+        term_modes: dict[int, int],
+    ) -> bool:
+        del term_type, term_size, term_modes
+        return True
+
+    def shell_requested(self) -> bool:
+        self._mode = "shell"
+        return True
+
+    def exec_requested(self, command: str) -> bool:
+        self._mode = "exec"
+        self._exec_command = command
+        return True
+
+    def subsystem_requested(self, subsystem: str) -> bool:
+        del subsystem
+        return False
+
+    def session_started(self) -> None:
+        if self._mode == "exec":
+            self._execute_exec()
+            return
+        self._write(
+            "MIRAGE virtual terminal — simulated data only; no host commands execute.\\r\\n"
+        )
+        self._write_prompt()
+        self._arm_idle_timeout()
+
+    def data_received(self, data: str | bytes, datatype: object) -> None:
+        del datatype
+        if self._closed or self._mode != "shell":
+            return
+        if isinstance(data, bytes):
+            data = data.decode("utf-8", errors="replace")
+        self._arm_idle_timeout()
+        for char in data:
+            if char == "\\n" and self._last_was_cr:
+                self._last_was_cr = False
+                continue
+            self._last_was_cr = char == "\\r"
+            if char in ("\\r", "\\n"):
+                self._cancel_line_timeout()
+                self._write("\\r\\n")
+                self._execute_line(self._buffer)
+                self._buffer = ""
+                if self._closed:
+                    return
+                if self._commands >= MAX_COMMANDS_PER_SESSION:
+                    self._write("MIRAGE: session command limit reached.\\r\\n")
+                    self._finish(0)
+                    return
+                self._write_prompt()
+                self._arm_idle_timeout()
+            elif char in ("\\x08", "\\x7f"):
+                if self._buffer:
+                    self._buffer = self._buffer[:-1]
+                    self._write("\\b \\b")
+            elif char.isprintable():
+                if not self._buffer:
+                    self._arm_line_timeout()
+                if len(self._buffer) >= MAX_COMMAND_LENGTH:
+                    self._write("\\r\\nmirage: input too long\\r\\n")
+                    self._finish(2)
+                    return
+                self._buffer += char
+                self._write(char)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        del exc
+        self._cancel_timeouts()
+        if not self._closed:
+            self._closed = True
+            self._owner._active_sessions -= 1
+
+    def _execute_exec(self) -> None:
+        command = self._exec_command or ""
+        if len(command) > MAX_COMMAND_LENGTH:
+            self._write("mirage: input too long\\r\\n")
+            self._finish(2)
+            return
+        self._execute_line(command)
+        if not self._closed:
+            self._finish(0)
+
+    def _execute_line(self, command: str) -> None:
+        if not command.strip():
+            return
+        if command.strip() in {"exit", "logout"}:
+            self._finish(0)
+            return
+        identifier = self._command_identifier(command)
+        event = self._events.record_terminal_command(
+            command_name=identifier,
+            source_ip=self._source_ip,
+            source_port=self._source_port,
+        )
+        try:
+            # Persist and fsync the redacted event before returning any output.
+            self._owner.event_sink(event)
+        except Exception:
+            self._finish(1)
+            return
+
+        output = self._terminal.execute(command)
+        self._commands += 1
+        if command.strip() == "clear":
+            self._write("\\x1b[2J\\x1b[H")
+        elif output:
+            self._write(output + "\\r\\n")
+
+    @staticmethod
+    def _command_identifier(command: str) -> str:
+        parts = command.strip().split(maxsplit=1)
+        if not parts:
+            return "empty"
+        candidate = parts[0].lower()
+        return candidate if re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", candidate) else "other"
+
+    def _write(self, value: str) -> None:
+        if self._channel is not None and not self._closed:
+            self._channel.write(value)  # type: ignore[attr-defined]
+
+    def _write_prompt(self) -> None:
+        self._write(
+            PROMPT.format(
+                username=self._terminal.username,
+                hostname=self._terminal.hostname,
+                cwd=self._terminal.cwd,
+            )
+        )
+
+    def _arm_idle_timeout(self) -> None:
+        self._cancel_idle_timeout()
+        self._idle_handle = asyncio.get_running_loop().call_later(
+            self._owner.idle_timeout, self._on_idle
+        )
+
+    def _arm_line_timeout(self) -> None:
+        self._cancel_line_timeout()
+        self._line_handle = asyncio.get_running_loop().call_later(
+            self._owner.idle_timeout, self._on_line_timeout
+        )
+
+    def _cancel_idle_timeout(self) -> None:
+        if self._idle_handle is not None:
+            self._idle_handle.cancel()
+            self._idle_handle = None
+
+    def _cancel_line_timeout(self) -> None:
+        if self._line_handle is not None:
+            self._line_handle.cancel()
+            self._line_handle = None
+
+    def _cancel_timeouts(self) -> None:
+        self._cancel_idle_timeout()
+        self._cancel_line_timeout()
+
+    def _on_idle(self) -> None:
+        self._write("\\r\\nMIRAGE: idle session closed.\\r\\n")
+        self._finish(0)
+
+    def _on_line_timeout(self) -> None:
+        self._write("\\r\\nmirage: command input timed out\\r\\n")
+        self._finish(2)
+
+    def _finish(self, status: int) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._cancel_timeouts()
+        self._owner._active_sessions -= 1
+        if self._channel is not None:
+            self._channel.exit(status)  # type: ignore[attr-defined]
+
+
 class SSHDecoyServer:
-    """A bounded SSH front-end to per-connection in-memory terminal instances."""
+    """A bounded SSH front-end to per-channel in-memory virtual terminals."""
 
     def __init__(
         self,
@@ -79,7 +289,7 @@ class SSHDecoyServer:
         port: int = 2222,
         max_sessions: int = 8,
         max_connections: int = 16,
-        idle_timeout: float = COMMAND_IDLE_TIMEOUT,
+        idle_timeout: float = COMMAND_TIMEOUT,
     ) -> None:
         if asyncssh is None:
             raise RuntimeError(
@@ -145,10 +355,8 @@ class SSHDecoyServer:
             host=self.host,
             port=self.port,
             server_host_keys=[str(self.host_key)],
-            process_factory=self._handle_process,
             allow_pty=True,
-            line_editor=True,
-            line_history=0,
+            line_editor=False,
             agent_forwarding=False,
             x11_forwarding=False,
             login_timeout=10,
@@ -159,7 +367,7 @@ class SSHDecoyServer:
         )
 
     async def close(self) -> None:
-        """Stop accepting SSH clients and close the listener."""
+        """Stop accepting SSH clients and close active connections."""
         if self._server is None:
             return
         server, self._server = self._server, None
@@ -173,130 +381,3 @@ class SSHDecoyServer:
                 connection.wait_closed() for connection in connections
             ]  # type: ignore[attr-defined]
             await asyncio.gather(*waiters, return_exceptions=True)
-
-    async def _read_command(self, process: object) -> str | None:
-        """Read one bounded command with an absolute line deadline."""
-        reader = process.stdin  # type: ignore[attr-defined]
-        try:
-            line = await asyncio.wait_for(
-                reader.readline(),
-                timeout=self.idle_timeout,
-            )
-        except TimeoutError:
-            return None
-        if not line:
-            return None
-        command = line.rstrip("\\r\\n")
-        if len(command) > MAX_COMMAND_LENGTH:
-            raise ValueError("command exceeds the maximum length")
-        return command
-
-    @staticmethod
-    def _command_identifier(command: str) -> str:
-        parts = command.strip().split(maxsplit=1)
-        if not parts:
-            return "empty"
-        candidate = parts[0].lower()
-        return candidate if re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", candidate) else "other"
-
-    @staticmethod
-    def _peer(process: object) -> tuple[str | None, int | None]:
-        peer = process.get_extra_info("peername")  # type: ignore[attr-defined]
-        if not isinstance(peer, tuple) or not peer:
-            return None, None
-        source_ip = str(peer[0])
-        source_port = int(peer[1]) if len(peer) > 1 else None
-        return source_ip, source_port
-
-    async def _record_and_execute(
-        self,
-        process: object,
-        terminal: VirtualTerminal,
-        factory: SessionEventFactory,
-        command: str,
-    ) -> str:
-        source_ip, source_port = self._peer(process)
-        event = factory.record_terminal_command(
-            command_name=self._command_identifier(command),
-            source_ip=source_ip,
-            source_port=source_port,
-        )
-        # Evidence must be durable before any simulated command output is sent.
-        self.event_sink(event)
-        return terminal.execute(command)
-
-    async def _handle_process(self, process: object) -> None:
-        """Serve one SSH shell or exec channel with isolated virtual state."""
-        if self._active_sessions >= self.max_sessions:
-            stderr = process.stderr  # type: ignore[attr-defined]
-            stderr.write("MIRAGE: session capacity reached.\\r\\n")
-            process.exit(1)  # type: ignore[attr-defined]
-            return
-
-        self._active_sessions += 1
-        try:
-            if process.subsystem:  # type: ignore[attr-defined]
-                stderr = process.stderr  # type: ignore[attr-defined]
-                stderr.write("MIRAGE: subsystem unavailable.\\r\\n")
-                process.exit(1)  # type: ignore[attr-defined]
-                return
-
-            terminal = VirtualTerminal()
-            factory = SessionEventFactory(self.profile_id)
-            if process.command is not None:  # type: ignore[attr-defined]
-                command = process.command  # type: ignore[attr-defined]
-                if len(command) > MAX_COMMAND_LENGTH:
-                    stderr = process.stderr  # type: ignore[attr-defined]
-                    stderr.write("mirage: input too long\\r\\n")
-                    process.exit(2)  # type: ignore[attr-defined]
-                    return
-                output = await self._record_and_execute(process, terminal, factory, command)
-                if output:
-                    process.stdout.write(output + "\\r\\n")  # type: ignore[attr-defined]
-                    await process.stdout.drain()  # type: ignore[attr-defined]
-                process.exit(0)  # type: ignore[attr-defined]
-                return
-
-            process.stdout.write(
-                "MIRAGE virtual terminal — simulated data only; no host commands execute.\\r\\n"
-            )  # type: ignore[attr-defined]
-            commands_handled = 0
-            while True:
-                process.stdout.write(  # type: ignore[attr-defined]
-                    PROMPT.format(
-                        username=terminal.username,
-                        hostname=terminal.hostname,
-                        cwd=terminal.cwd,
-                    )
-                )
-                await process.stdout.drain()  # type: ignore[attr-defined]
-                try:
-                    command = await self._read_command(process)
-                except ValueError:
-                    stdout = process.stdout  # type: ignore[attr-defined]
-                    stdout.write("mirage: input too long\\r\\n")
-                    process.exit(2)  # type: ignore[attr-defined]
-                    return
-                if command is None:
-                    break
-                if not command.strip():
-                    continue
-                if command.strip() in {"exit", "logout"}:
-                    break
-                output = await self._record_and_execute(process, terminal, factory, command)
-                if command.strip() == "clear":
-                    process.stdout.write("\\x1b[2J\\x1b[H")  # type: ignore[attr-defined]
-                elif output:
-                    process.stdout.write(output + "\\r\\n")  # type: ignore[attr-defined]
-                await process.stdout.drain()  # type: ignore[attr-defined]
-                commands_handled += 1
-                if commands_handled >= MAX_COMMANDS_PER_SESSION:
-                    stdout = process.stdout  # type: ignore[attr-defined]
-                    stdout.write("MIRAGE: session command limit reached.\\r\\n")
-                    break
-            process.exit(0)  # type: ignore[attr-defined]
-        except Exception:
-            # A failed evidence write must close the channel without a response.
-            process.exit(1)  # type: ignore[attr-defined]
-        finally:
-            self._active_sessions -= 1
