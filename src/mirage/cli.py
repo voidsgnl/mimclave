@@ -15,6 +15,7 @@ from mirage.config.registry import ProfileRegistry
 from mirage.discovery.ports import discover_proc_listeners
 from mirage.emulation.http import HttpDecoy
 from mirage.emulation.terminal import VirtualTerminal
+from mirage.sandbox.worker_broker import UnixWorkerEventBroker, WorkerBrokerError
 from mirage.telemetry.checkpoints import CheckpointError
 from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
 from mirage.telemetry.intelligence import build_activity_report, render_activity_report
@@ -79,6 +80,23 @@ def build_parser() -> argparse.ArgumentParser:
     ssh.add_argument("--profile-id", default="local-ssh")
     ssh.add_argument("--max-sessions", type=int, default=8)
     ssh.add_argument("--idle-timeout", type=float, default=30.0)
+    broker = subparsers.add_parser(
+        "serve-worker-broker",
+        help="run the private Unix-socket evidence broker for sandbox workers",
+    )
+    broker.add_argument("--socket", type=Path, required=True, help="private Unix socket path")
+    broker.add_argument(
+        "--evidence", type=Path, required=True, help="hash-chained worker evidence file"
+    )
+    broker.add_argument(
+        "--allowed-uid", type=int, action="append",
+        help="authorized worker UID; repeat to allow more than one (default: current UID)",
+    )
+    broker.add_argument(
+        "--socket-gid", type=int,
+        help="optional worker group; requires explicit --allowed-uid and a group-traversable parent",
+    )
+    broker.add_argument("--max-clients", type=int, default=64)
     migrate = subparsers.add_parser(
         "migrate-evidence", help="migrate a legacy JSONL evidence log to segmented storage"
     )
@@ -161,6 +179,30 @@ async def _serve_http(args: argparse.Namespace) -> None:
         await asyncio.Event().wait()
     finally:
         await server.close()
+
+
+async def _serve_worker_broker(args: argparse.Namespace) -> None:
+    """Run the evidence-owning broker; workers receive only the Unix socket."""
+    store = JsonlEvidenceStore(args.evidence)
+    if args.evidence.exists():
+        store.verify()
+    broker = UnixWorkerEventBroker(
+        args.socket,
+        store,
+        allowed_uids=None if args.allowed_uid is None else set(args.allowed_uid),
+        socket_gid=args.socket_gid,
+        max_clients=args.max_clients,
+    )
+    await broker.start()
+    print(
+        f"MIRAGE worker event broker listening on {args.socket} "
+        f"(evidence={args.evidence}; max-clients={args.max_clients})",
+        flush=True,
+    )
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await broker.close()
 
 
 async def _serve_ssh(args: argparse.Namespace) -> None:
@@ -281,6 +323,17 @@ def main(argv: list[str] | None = None) -> int:
             ConfigLoadError, EvidenceStoreError, OSError, ValueError, RuntimeError
         ) as exc:
             print(f"HTTP decoy failed: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.command == "serve-worker-broker":
+        try:
+            asyncio.run(_serve_worker_broker(args))
+        except KeyboardInterrupt:
+            print("\\nMIRAGE worker event broker stopped.", flush=True)
+            return 130
+        except (EvidenceStoreError, OSError, RuntimeError, ValueError, WorkerBrokerError) as exc:
+            print(f"Worker event broker failed: {exc}", file=sys.stderr)
             return 2
         return 0
 
