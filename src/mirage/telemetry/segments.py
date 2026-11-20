@@ -713,7 +713,7 @@ class SegmentedEvidenceStore:
                             start_record_number=active.first_record_number,
                             start_previous_hash=active.start_previous_hash,
                         )
-                    except CheckpointError:
+                    except CheckpointError as rotation_error:
                         # Rotation failed; re-open the original segment for appending.
                         if sfd == -1:
                             manifest_data = _read_all(mfd)
@@ -722,7 +722,7 @@ class SegmentedEvidenceStore:
                             if active is None:
                                 raise EvidenceIntegrityError(
                                     "no active segment after failed rotation"
-                                )
+                                ) from rotation_error
                             seg_path = self.directory / active.file_name
                             sfd = _open_private(seg_path, os.O_RDWR | os.O_APPEND)
                             _validate_regular_private(sfd)
@@ -1002,21 +1002,25 @@ class SegmentedEvidenceStore:
                 start_record_number=oldest.first_record_number,
                 start_previous_hash=oldest.start_previous_hash,
             )
-            # The export must cover the same records as the sealed segment.
-            if oldest.last_record_number is not None and export_v.record_count != oldest.last_record_number:
-                raise SegmentRetirementError(
-                    f"export covers {export_v.record_count} records but sealed segment "
-                    f"ends at record {oldest.last_record_number}"
-                )
-            if oldest.last_hash is not None and not hmac.compare_digest(
-                export_v.head_hash, oldest.last_hash
-            ):
-                raise SegmentRetirementError(
-                    "export chain head hash does not match the sealed segment's last hash"
-                )
-
             # --- Precondition 3: checkpoint covers the full retained chain ---
             verification, full_index = self._verify_all_retained_with_index(mv)
+
+            # Accept either an export of the oldest segment alone or the complete
+            # retained chain produced by export_verified(). Both must be an exact
+            # hash-verified match; partial or extended exports are not accepted.
+            oldest_export_matches = (
+                export_v.record_count == oldest.last_record_number
+                and hmac.compare_digest(export_v.head_hash, oldest.last_hash or "")
+            )
+            full_export_matches = (
+                export_v.record_count == verification.record_count
+                and hmac.compare_digest(export_v.head_hash, verification.head_hash)
+            )
+            if not (oldest_export_matches or full_export_matches):
+                raise SegmentRetirementError(
+                    "export must match either the oldest sealed segment or the "
+                    "complete retained evidence chain"
+                )
             try:
                 checkpoint = anchor.read()
             except Exception as exc:
@@ -1077,7 +1081,7 @@ class SegmentedEvidenceStore:
         max_segment_records: int | None = None,
         verify_sealed_on_append: bool = True,
         anchor: CheckpointAnchor | None = None,
-    ) -> "SegmentedEvidenceStore":
+    ) -> SegmentedEvidenceStore:
         """Adopt a legacy single-file log as segment 1.
 
         Preconditions:
