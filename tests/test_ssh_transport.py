@@ -77,59 +77,62 @@ def test_ssh_exec_uses_virtual_terminal_and_persists_redacted_event(tmp_path) ->
 
 
 def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) -> None:
-    key_path = _host_key(tmp_path)
-    events = []
-    server = SSHDecoyServer(
-        event_sink=events.append,
-        host_key=key_path,
-        port=0,
-    )
+    async def scenario() -> None:
+        key_path = _host_key(tmp_path)
+        events = []
+        server = SSHDecoyServer(
+            event_sink=events.append,
+            host_key=key_path,
+            port=0,
+        )
 
-    class FakeChannel:
-        def __init__(self) -> None:
-            self.output = []
-            self.exit_status = None
+        class FakeChannel:
+            def __init__(self) -> None:
+                self.output = []
+                self.exit_status = None
 
-        def get_extra_info(self, name):
-            assert name == "peername"
-            return ("127.0.0.1", 54321)
+            def get_extra_info(self, name):
+                assert name == "peername"
+                return ("127.0.0.1", 54321)
 
-        def write(self, value: str) -> None:
-            self.output.append(value)
+            def write(self, value: str) -> None:
+                self.output.append(value)
 
-        def exit(self, status: int) -> None:
-            self.exit_status = status
+            def exit(self, status: int) -> None:
+                self.exit_status = status
 
-    first_channel = FakeChannel()
-    second_channel = FakeChannel()
-    server._active_sessions = 2
-    first = _VirtualTerminalSession(server)
-    second = _VirtualTerminalSession(server)
-    try:
-        first.connection_made(first_channel)
-        first.shell_requested()
-        first.session_started()
-        first.data_received("cd /home/deploy\\n", None)
-        first.data_received("pwd\\n", None)
+        first_channel = FakeChannel()
+        second_channel = FakeChannel()
+        server._active_sessions = 2
+        first = _VirtualTerminalSession(server)
+        second = _VirtualTerminalSession(server)
+        try:
+            first.connection_made(first_channel)
+            first.shell_requested()
+            first.session_started()
+            first.data_received("cd /home/deploy\\n", None)
+            first.data_received("pwd\\n", None)
 
-        second.connection_made(second_channel)
-        second.shell_requested()
-        second.session_started()
-        second.data_received("pwd\\n", None)
+            second.connection_made(second_channel)
+            second.shell_requested()
+            second.session_started()
+            second.data_received("pwd\\n", None)
 
-        first_output = "".join(first_channel.output)
-        second_output = "".join(second_channel.output)
-        assert "/home/deploy" in first_output
-        assert "/var/www" in second_output
-        assert [event.path for event in events] == [
-            "/terminal/cd",
-            "/terminal/pwd",
-            "/terminal/pwd",
-        ]
-    finally:
-        first._finish(0)
-        second._finish(0)
-    assert server._active_sessions == 0
+            first_output = "".join(first_channel.output)
+            second_output = "".join(second_channel.output)
+            assert "/home/deploy" in first_output
+            assert "/var/www" in second_output
+            assert [event.path for event in events] == [
+                "/terminal/cd",
+                "/terminal/pwd",
+                "/terminal/pwd",
+            ]
+        finally:
+            first._finish(0)
+            second._finish(0)
+        assert server._active_sessions == 0
+
+    asyncio.run(scenario())
 
 
 def test_ssh_evidence_failure_sends_no_command_output(tmp_path) -> None:
