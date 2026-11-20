@@ -93,8 +93,9 @@ class WorkerEvent:
             parsed = datetime.fromisoformat(self.timestamp.replace("Z", "+00:00"))
         except ValueError as exc:
             raise WorkerMessageError("timestamp must be a valid ISO-8601 value") from exc
-        if parsed.utcoffset() is None:
-            raise WorkerMessageError("timestamp must include a timezone offset")
+        offset = parsed.utcoffset()
+        if offset is None or offset.total_seconds() != 0:
+            raise WorkerMessageError("timestamp must use a UTC timezone offset")
 
         if self.source_ip is not None:
             if not isinstance(self.source_ip, str):
