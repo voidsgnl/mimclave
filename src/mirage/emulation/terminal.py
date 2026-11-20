@@ -7,7 +7,7 @@ It is a deterministic teaching/deception surface, not a real operating-system sh
 import posixpath
 import re
 import shlex
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 MAX_COMMAND_LENGTH = 512
 MAX_ARGUMENTS = 16
@@ -86,8 +86,6 @@ class VirtualTerminal:
     hostname: str = VIRTUAL_HOSTNAME
     username: str = VIRTUAL_USER
     cwd: str = "/var/www"
-    _commands_seen: int = field(default=0, init=False, repr=False)
-
     def execute(self, line: str) -> str:
         """Interpret one allowlisted command without evaluating host shell syntax."""
         if not isinstance(line, str) or not line.strip():
@@ -107,8 +105,6 @@ class VirtualTerminal:
             return "mirage: too many arguments"
 
         command, *args = tokens
-        self._commands_seen += 1
-
         if command == "help":
             return (
                 "Available commands: help, whoami, hostname, pwd, id, uname, "
