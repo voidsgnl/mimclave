@@ -129,7 +129,7 @@ class SSHDecoyServer:
         """Return the actual bound address."""
         if self._server is None:
             raise RuntimeError("SSH decoy server is not started")
-        sockets = self._server.get_sockets()  # type: ignore[attr-defined]
+        sockets = self._server.sockets  # type: ignore[attr-defined]
         if not sockets:
             raise RuntimeError("SSH decoy server has no listening socket")
         host, port, *_ = sockets[0].getsockname()
