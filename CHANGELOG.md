@@ -91,3 +91,17 @@ All notable project changes are documented here.
 
 ### M3 — Independent checkpoint service implementation
 - Added a SQLite-backed checkpoint service with authenticated conditional GET/PUT, strong ETags, monotonic compare-and-set, FULL synchronous commits, private file permissions, loopback-only binding, and an append-only hash-chained checkpoint history. Added request-size/type/authentication checks, request timeouts, token-strength enforcement, and systemd/Caddy deployment examples. The service is a reference implementation only and has not been deployed or independently audited. GitHub Actions run #277 passed 146 tests and Ruff on Python 3.12–3.14.
+
+
+## Unreleased — 2026-11-20
+
+### Added
+- Added a private supervisor-control Unix socket for registering worker sessions before evidence events are accepted.
+- Bound each registration to the expected worker UID/PID, protocol, and supervisor-supplied client peer address/port; worker events are checked against kernel `SO_PEERCRED`.
+- Added registration expiry, replay rejection, bounded pending registrations, and control-socket lifecycle handling.
+- Added tests for unregistered workers, UID/PID mismatch, protocol mismatch, and trusted source metadata.
+
+### Security notes
+- The default same-UID development mode is not an isolation boundary. Use a dedicated worker UID and explicit allowlist.
+- The registration/evidence broker is not yet connected to HTTP/SSH transports and does not provide OS sandboxing or traffic steering.
+- CI verification for this change is pending.
