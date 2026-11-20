@@ -28,6 +28,7 @@ from mirage.telemetry.store import EvidenceStoreError, JsonlEvidenceStore
 
 MAX_BROKER_CLIENTS = 64
 MAX_RECENT_SESSIONS = 4096
+MAX_SUPERVISOR_MESSAGE_BYTES = 4096
 
 
 class WorkerBrokerError(RuntimeError):
@@ -56,6 +57,7 @@ class UnixWorkerEventBroker:
         except OSError as exc:
             raise WorkerBrokerError("worker socket parent directory must already exist") from exc
         self.socket_path = resolved_parent / requested_path.name
+        self.control_socket_path = resolved_parent / (requested_path.name + ".control")
         if not isinstance(profile_id, str) or not re.fullmatch(
             r"[a-z0-9][a-z0-9._-]{0,63}", profile_id
         ):
@@ -92,6 +94,8 @@ class UnixWorkerEventBroker:
         self.max_clients = max_clients
         self.client_idle_timeout = float(client_idle_timeout)
         self._server: asyncio.AbstractServer | None = None
+        self._control_server: asyncio.AbstractServer | None = None
+        self._registrations: dict[str, dict[str, object]] = {}
         self._sequence_guard = WorkerEventSequenceGuard(max_sessions=max_clients)
         self._active_clients = 0
         self._writers: set[asyncio.StreamWriter] = set()
@@ -129,6 +133,22 @@ class UnixWorkerEventBroker:
                 raise WorkerBrokerError("created worker socket failed ownership validation")
             if stat.S_IMODE(info.st_mode) != socket_mode:
                 raise WorkerBrokerError(f"worker socket permissions must be {socket_mode:04o}")
+            if self.control_socket_path.exists() or self.control_socket_path.is_symlink():
+                raise WorkerBrokerError("supervisor control socket path already exists")
+            self._control_server = await asyncio.start_unix_server(
+                self._handle_supervisor,
+                path=str(self.control_socket_path),
+                limit=MAX_SUPERVISOR_MESSAGE_BYTES + 1,
+                backlog=16,
+            )
+            os.chmod(self.control_socket_path, 0o600, follow_symlinks=False)
+            control_info = os.lstat(self.control_socket_path)
+            if (
+                not stat.S_ISSOCK(control_info.st_mode)
+                or control_info.st_uid != os.geteuid()
+                or stat.S_IMODE(control_info.st_mode) != 0o600
+            ):
+                raise WorkerBrokerError("supervisor control socket failed ownership validation")
         except (OSError, RuntimeError) as exc:
             await self.close()
             if isinstance(exc, WorkerBrokerError):
@@ -137,6 +157,10 @@ class UnixWorkerEventBroker:
 
     async def close(self) -> None:
         """Stop accepting clients and remove only the socket inode we created."""
+        control_server, self._control_server = self._control_server, None
+        if control_server is not None:
+            control_server.close()
+            await control_server.wait_closed()
         server, self._server = self._server, None
         if server is not None:
             server.close()
@@ -152,6 +176,12 @@ class UnixWorkerEventBroker:
         tasks = tuple(task for task in self._client_tasks if task is not asyncio.current_task())
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            control_info = os.lstat(self.control_socket_path)
+            if stat.S_ISSOCK(control_info.st_mode) and control_info.st_uid == os.geteuid():
+                self.control_socket_path.unlink()
+        except FileNotFoundError:
+            pass
         identity, self._socket_identity = self._socket_identity, None
         if identity is None:
             return
@@ -227,20 +257,89 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError("worker socket path changed during stale-socket check")
         self.socket_path.unlink()
 
-    def _peer_uid(self, writer: asyncio.StreamWriter) -> int:
+    def _peer_credentials(self, writer: asyncio.StreamWriter) -> tuple[int, int]:
         peer = writer.get_extra_info("socket")
         if peer is None or not hasattr(socket, "SO_PEERCRED"):
             raise WorkerBrokerError("Linux SO_PEERCRED is required for worker authentication")
         try:
             credentials = peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
-            _, uid, _ = struct.unpack("3i", credentials)
+            pid, uid, _ = struct.unpack("3i", credentials)
         except OSError as exc:
             raise WorkerBrokerError("could not authenticate worker peer credentials") from exc
-        if uid not in self.allowed_uids:
-            raise WorkerBrokerError("worker UID is not authorized")
-        return uid
+        return pid, uid
 
-    def _to_session_event(self, event: WorkerEvent) -> SessionEvent:
+    async def _handle_supervisor(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        self._writers.add(writer)
+        try:
+            _, uid = self._peer_credentials(writer)
+            if uid != os.geteuid():
+                raise WorkerBrokerError("supervisor UID is not authorized")
+            frame = await asyncio.wait_for(
+                reader.readuntil(b"\\n"), timeout=self.client_idle_timeout
+            )
+            if len(frame) > MAX_SUPERVISOR_MESSAGE_BYTES:
+                raise WorkerMessageError("supervisor message exceeds the size limit")
+            payload = json.loads(frame[:-1].decode("utf-8"))
+            required = {
+                "action", "session_id", "protocol", "source_ip", "source_port",
+                "worker_uid", "worker_pid",
+            }
+            if not isinstance(payload, dict) or set(payload) != required:
+                raise WorkerMessageError("invalid supervisor registration fields")
+            if payload["action"] != "register":
+                raise WorkerMessageError("unsupported supervisor action")
+            session_id = payload["session_id"]
+            if not isinstance(session_id, str):
+                raise WorkerMessageError("session ID must be a UUID")
+            from uuid import UUID
+            if str(UUID(session_id)) != session_id.lower():
+                raise WorkerMessageError("session ID must be a canonical UUID")
+            protocol = payload["protocol"]
+            if protocol not in {"http", "https", "ssh"}:
+                raise WorkerMessageError("unsupported registered protocol")
+            from ipaddress import ip_address
+            source_ip = str(ip_address(payload["source_ip"]))
+            source_port = payload["source_port"]
+            worker_uid = payload["worker_uid"]
+            worker_pid = payload["worker_pid"]
+            if isinstance(source_port, bool) or not isinstance(source_port, int) or not 1 <= source_port <= 65535:
+                raise WorkerMessageError("invalid registered source port")
+            if isinstance(worker_uid, bool) or not isinstance(worker_uid, int) or worker_uid not in self.allowed_uids:
+                raise WorkerMessageError("registered worker UID is not allowed")
+            if isinstance(worker_pid, bool) or not isinstance(worker_pid, int) or worker_pid < 1:
+                raise WorkerMessageError("invalid registered worker PID")
+            if session_id in self._registrations or session_id in self._recent_session_ids:
+                raise WorkerMessageError("session ID is already registered or has been used")
+            if len(self._registrations) >= self.max_clients:
+                raise WorkerMessageError("maximum registered sessions reached")
+            self._registrations[session_id] = {
+                "protocol": protocol,
+                "source_ip": source_ip,
+                "source_port": source_port,
+                "worker_uid": worker_uid,
+                "worker_pid": worker_pid,
+            }
+            writer.write(b'{"registered":true}\\n')
+            await asyncio.wait_for(writer.drain(), timeout=self.client_idle_timeout)
+        except (WorkerMessageError, WorkerBrokerError, OSError, ValueError, KeyError, TypeError, TimeoutError):
+            try:
+                writer.write(b'{"registered":false,"error":"registration rejected"}\\n')
+                await writer.drain()
+            except (ConnectionError, OSError):
+                pass
+        finally:
+            self._writers.discard(writer)
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except (ConnectionError, OSError):
+                pass
+
+    def _to_session_event(
+        self, event: WorkerEvent, registration: dict[str, object] | None = None
+    ) -> SessionEvent:
         """Map worker claims to evidence using broker-owned profile and receipt time."""
         timestamp = datetime.now(UTC)
         if event.protocol in {"http", "https"}:
@@ -263,6 +362,8 @@ class UnixWorkerEventBroker:
         else:
             raise WorkerMessageError("unsupported worker protocol")
 
+        if registration is not None and event.protocol != registration["protocol"]:
+            raise WorkerMessageError("worker protocol does not match supervisor registration")
         return SessionEvent(
             event_id=event.event_id,
             session_id=event.session_id,
@@ -273,10 +374,9 @@ class UnixWorkerEventBroker:
             method=method,
             path=path,
             status_code=status_code,
-            # Source addresses remain unset until a trusted supervisor registers
-            # the accepted client socket and binds its peer address to this session.
-            source_ip=None,
-            source_port=None,
+            # Source metadata comes only from the supervisor's accepted client socket.
+            source_ip=None if registration is None else str(registration["source_ip"]),
+            source_port=None if registration is None else int(registration["source_port"]),
         )
 
     async def _handle_client(
@@ -291,7 +391,9 @@ class UnixWorkerEventBroker:
         try:
             if self._active_clients > self.max_clients:
                 raise WorkerBrokerError("maximum worker connections reached")
-            self._peer_uid(writer)
+            peer_pid, peer_uid = self._peer_credentials(writer)
+            if peer_uid not in self.allowed_uids:
+                raise WorkerBrokerError("worker UID is not authorized")
             while True:
                 try:
                     frame = await asyncio.wait_for(
@@ -314,15 +416,27 @@ class UnixWorkerEventBroker:
                 event = decode_worker_event(frame)
                 first_event = session_id is None
                 if first_event:
-                    if event.session_id in self._recent_session_ids:
-                        raise WorkerMessageError("worker session ID has already been used")
+                    registration = self._registrations.get(event.session_id)
+                    if registration is None:
+                        raise WorkerMessageError("worker session was not registered")
+                    if (
+                        registration["worker_uid"] != peer_uid
+                        or registration["worker_pid"] != peer_pid
+                        or registration["protocol"] != event.protocol
+                    ):
+                        raise WorkerMessageError("worker identity does not match registration")
                     session_id = event.session_id
+                    if session_id in self._recent_session_ids:
+                        raise WorkerMessageError("worker session ID has already been used")
                 elif event.session_id != session_id:
                     raise WorkerMessageError(
                         "one worker connection must use exactly one session ID"
                     )
 
-                session_event = self._to_session_event(event)
+                registration = self._registrations.get(event.session_id)
+                if registration is None:
+                    raise WorkerMessageError("worker session registration expired")
+                session_event = self._to_session_event(event, registration)
                 async with self._commit_lock:
                     self._sequence_guard.validate(event)
                     await asyncio.to_thread(self.evidence_store.append, session_event)
@@ -352,6 +466,7 @@ class UnixWorkerEventBroker:
         finally:
             if session_id is not None:
                 self._sequence_guard.close_session(session_id)
+                self._registrations.pop(session_id, None)
             self._active_clients = max(0, self._active_clients - 1)
             self._writers.discard(writer)
             if task is not None:
