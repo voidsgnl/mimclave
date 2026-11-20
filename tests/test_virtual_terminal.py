@@ -28,6 +28,31 @@ def test_virtual_directory_navigation_is_instance_local() -> None:
     assert "Deployment notes" in first.execute("cat README.txt")
 
 
+def test_parent_directory_navigation_stays_inside_virtual_root() -> None:
+    terminal = VirtualTerminal()
+    assert terminal.execute("cd ..") == ""
+    assert terminal.execute("pwd") == "/var"
+    assert terminal.execute("cd ..") == ""
+    assert terminal.execute("pwd") == "/"
+    assert terminal.execute("cd ..") == ""
+    assert terminal.execute("pwd") == "/"
+
+
+def test_cd_dash_returns_to_previous_virtual_directory() -> None:
+    terminal = VirtualTerminal()
+    assert terminal.execute("cd /home/deploy") == ""
+    assert terminal.execute("cd -") == "/var/www"
+    assert terminal.execute("pwd") == "/var/www"
+    assert terminal.execute("cd -") == "/home/deploy"
+    assert terminal.execute("pwd") == "/home/deploy"
+
+
+def test_relative_parent_paths_resolve_only_inside_virtual_filesystem() -> None:
+    terminal = VirtualTerminal()
+    assert "Deployment notes" in terminal.execute("cat ../../home/deploy/README.txt")
+    assert "No such file" in terminal.execute("cat ../../etc/shadow")
+
+
 def test_virtual_listing_and_process_table_are_deterministic() -> None:
     terminal = VirtualTerminal()
     assert "html" in terminal.execute("ls")
