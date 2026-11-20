@@ -72,3 +72,16 @@ def test_help_and_clear_are_local_terminal_operations() -> None:
     terminal = VirtualTerminal()
     assert "Available commands" in terminal.execute("help")
     assert terminal.execute("clear") == ""
+
+
+
+def test_simulate_terminal_cli_exits_cleanly(monkeypatch, capsys) -> None:
+    from mirage import cli
+
+    commands = iter(["whoami", "cat /etc/hostname", "exit"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(commands))
+    assert cli.main(["simulate-terminal"]) == 0
+    output = capsys.readouterr().out
+    assert "MIRAGE virtual terminal" in output
+    assert "www-data" in output
+    assert "intranet.example.test" in output
