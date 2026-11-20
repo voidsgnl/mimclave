@@ -135,6 +135,7 @@ install -d -m 700 var/mirage/worker
 
 ./.venv/bin/mirage serve-worker-broker \
   --socket var/mirage/worker/broker.sock \
+  --profile-id local-worker \
   --evidence var/mirage/worker-events.jsonl
 ```
 
