@@ -97,7 +97,7 @@ A sandbox implementation is not accepted until automated tests demonstrate:
 
 Tests must run in disposable CI or dedicated test hosts. Do not run destructive escape tests against a developer workstation.
 
-## Current implementation status\n\nThe declarative policy layer is implemented in `src/mirage/sandbox/policy.py` with tests in `tests/test_sandbox_policy.py`. It validates policy intent and resource ceilings only. No runtime mechanism applies these settings yet; a policy passing validation must not be described as an active sandbox.\n\n## Implementation order
+## Current implementation status\n\nThe declarative policy layer is implemented in `src/mirage/sandbox/policy.py` with tests in `tests/test_sandbox_policy.py`. The bounded event codec and per-session sequence guard are implemented in `src/mirage/sandbox/ipc.py` with tests in `tests/test_sandbox_ipc.py`. These components validate policy intent and message framing only. They do not open IPC sockets, run a broker process, or apply namespaces, cgroups, seccomp, VM, or network rules. Passing validation must not be described as an active sandbox.\n\n## Implementation order
 
 1. Add a declarative sandbox policy model and validation tests; keep it separate from runtime enforcement.
 2. Build a worker-supervisor IPC contract with bounded messages and evidence-broker ownership.
