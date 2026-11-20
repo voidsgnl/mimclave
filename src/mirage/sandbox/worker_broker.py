@@ -439,8 +439,7 @@ class UnixWorkerEventBroker:
     ) -> SessionEvent:
         """Map worker claims to evidence using broker-owned profile and receipt time."""
         timestamp = datetime.now(UTC)
-        registered_protocol, source_ip, source_port, expires_at = registration
-        if expires_at <= asyncio.get_running_loop().time() or event.protocol != registered_protocol:
+        if registration is None or event.protocol != registration["protocol"]:
             raise WorkerMessageError("event does not match an active supervisor registration")
         if event.protocol in {"http", "https"}:
             if (
@@ -523,6 +522,7 @@ class UnixWorkerEventBroker:
                         registration["worker_uid"] != peer_uid
                         or registration["worker_pid"] != peer_pid
                         or registration["protocol"] != event.protocol
+                        or registration.get("claimed", False)
                     ):
                         raise WorkerMessageError("worker identity does not match registration")
                     session_id = event.session_id
@@ -542,7 +542,7 @@ class UnixWorkerEventBroker:
                     await asyncio.to_thread(self.evidence_store.append, session_event)
                     self._sequence_guard.accept(event)
                     if first_event:
-                        self._registrations.pop(event.session_id, None)
+                        registration["claimed"] = True
                         self._recent_session_ids.add(event.session_id)
                         self._recent_session_order.append(event.session_id)
                         if len(self._recent_session_order) > MAX_RECENT_SESSIONS:
@@ -567,7 +567,6 @@ class UnixWorkerEventBroker:
         finally:
             if session_id is not None:
                 self._sequence_guard.close_session(session_id)
-                self._registrations.pop(session_id, None)
                 self._registrations.pop(session_id, None)
             self._active_clients = max(0, self._active_clients - 1)
             self._writers.discard(writer)
