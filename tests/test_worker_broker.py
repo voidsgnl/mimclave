@@ -59,7 +59,7 @@ async def register_session(
     response = json.loads(await reader.readline())
     writer.close()
     await writer.wait_closed()
-    assert response["registered"] is True
+    return response["registered"] is True
 
 
 
@@ -114,7 +114,7 @@ def test_broker_rejects_wrong_peer_uid(tmp_path: Path) -> None:
         await broker.start()
         try:
             event = make_event(str(uuid4()))
-            await register_session(socket_path, event.session_id, worker_uid=os.geteuid() + 1)
+            assert not await register_session(socket_path, event.session_id, worker_uid=os.geteuid() + 1)
             reader, writer = await asyncio.open_unix_connection(socket_path)
             writer.write(encode_worker_event(event))
             await writer.drain()
