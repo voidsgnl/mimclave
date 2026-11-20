@@ -41,6 +41,7 @@ class UnixWorkerEventBroker:
         evidence_store: JsonlEvidenceStore,
         *,
         allowed_uids: set[int] | None = None,
+        socket_gid: int | None = None,
         max_clients: int = MAX_BROKER_CLIENTS,
     ) -> None:
         requested_path = Path(socket_path)
@@ -64,6 +65,13 @@ class UnixWorkerEventBroker:
             raise ValueError("max_clients must be an integer")
         if not 1 <= max_clients <= MAX_BROKER_CLIENTS:
             raise ValueError(f"max_clients must be between 1 and {MAX_BROKER_CLIENTS}")
+        if socket_gid is not None and (
+            isinstance(socket_gid, bool) or not isinstance(socket_gid, int) or socket_gid < 0
+        ):
+            raise ValueError("socket_gid must be a non-negative group ID")
+        if socket_gid is not None and allowed_uids is None:
+            raise ValueError("allowed_uids must be explicit when a worker socket group is configured")
+        self.socket_gid = socket_gid
         self.max_clients = max_clients
         self._server: asyncio.AbstractServer | None = None
         self._sequence_guard = WorkerEventSequenceGuard(max_sessions=max_clients)
@@ -84,12 +92,19 @@ class UnixWorkerEventBroker:
                 limit=MAX_WORKER_MESSAGE_BYTES + 1,
                 backlog=self.max_clients,
             )
-            os.chmod(self.socket_path, 0o600, follow_symlinks=False)
+            if self.socket_gid is not None:
+                os.chown(self.socket_path, -1, self.socket_gid, follow_symlinks=False)
+            socket_mode = 0o600 if self.socket_gid is None else 0o660
+            os.chmod(self.socket_path, socket_mode, follow_symlinks=False)
             info = os.lstat(self.socket_path)
-            if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.geteuid():
+            if (
+                not stat.S_ISSOCK(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or (self.socket_gid is not None and info.st_gid != self.socket_gid)
+            ):
                 raise WorkerBrokerError("created worker socket failed ownership validation")
-            if stat.S_IMODE(info.st_mode) != 0o600:
-                raise WorkerBrokerError("worker socket permissions must be 0600")
+            if stat.S_IMODE(info.st_mode) != socket_mode:
+                raise WorkerBrokerError(f"worker socket permissions must be {socket_mode:04o}")
             self._socket_identity = (info.st_dev, info.st_ino)
         except (OSError, RuntimeError) as exc:
             await self.close()
@@ -127,8 +142,20 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError("worker socket parent must be a real directory")
         if info.st_uid != os.geteuid():
             raise WorkerBrokerError("worker socket directory must be owned by the broker UID")
-        if stat.S_IMODE(info.st_mode) & 0o077:
-            raise WorkerBrokerError("worker socket directory must have private 0700 permissions")
+        mode = stat.S_IMODE(info.st_mode)
+        if self.socket_gid is None:
+            if mode & 0o077:
+                raise WorkerBrokerError("worker socket directory must have private 0700 permissions")
+        elif (
+            info.st_gid != self.socket_gid
+            or mode & 0o007
+            or mode & 0o060
+            or not mode & 0o010
+        ):
+            raise WorkerBrokerError(
+                "group worker socket directory must match socket_gid and use owner rwx, "
+                "group execute-only, and no world permissions"
+            )
 
     def _remove_stale_socket(self) -> None:
         try:
@@ -138,11 +165,16 @@ class UnixWorkerEventBroker:
         if (
             not stat.S_ISSOCK(info.st_mode)
             or info.st_uid != os.geteuid()
-            or stat.S_IMODE(info.st_mode) != 0o600
+            or stat.S_IMODE(info.st_mode) not in {0o600, 0o660}
         ):
             raise WorkerBrokerError(
                 "refusing to replace an existing non-private or non-socket IPC path"
             )
+        expected_mode = 0o600 if self.socket_gid is None else 0o660
+        if stat.S_IMODE(info.st_mode) != expected_mode:
+            raise WorkerBrokerError("existing worker socket has unexpected permissions")
+        if self.socket_gid is not None and info.st_gid != self.socket_gid:
+            raise WorkerBrokerError("existing worker socket has unexpected group ownership")
         probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             if probe.connect_ex(str(self.socket_path)) == 0:
