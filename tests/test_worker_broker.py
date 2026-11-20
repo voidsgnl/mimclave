@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import socket
 import stat
 from pathlib import Path
 from uuid import uuid4
