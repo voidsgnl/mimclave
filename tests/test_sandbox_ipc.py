@@ -75,12 +75,14 @@ def test_decoder_rejects_unknown_and_missing_fields() -> None:
 @pytest.mark.parametrize(
     "kwargs, message",
     [
-        ({"timestamp": "2026-11-20T18:00:00"}, "timezone offset"),
+        ({"timestamp": "2026-11-20T18:00:00"}, "UTC timezone"),
+        ({"timestamp": "2026-11-20T18:00:00+02:00"}, "UTC timezone"),
         ({"source_ip": "not-an-ip"}, "valid IP"),
         ({"source_port": 0}, "source_port"),
         ({"method": "get"}, "uppercase token"),
         ({"request_path": "/login?token=secret"}, "sanitized"),
         ({"request_path": "login"}, "sanitized"),
+        ({"request_path": "//other-host/path"}, "sanitized"),
         ({"status_code": 99}, "status_code"),
         ({"command_name": "cat /etc/passwd"}, "normalized command"),
     ],
