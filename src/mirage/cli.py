@@ -97,7 +97,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     broker.add_argument(
         "--socket-gid", type=int,
-        help="optional worker group; requires explicit --allowed-uid and a group-traversable parent",
+        help=(
+            "optional worker group; requires explicit --allowed-uid "
+            "and a group-traversable parent"
+        ),
     )
     broker.add_argument("--max-clients", type=int, default=64)
     migrate = subparsers.add_parser(
