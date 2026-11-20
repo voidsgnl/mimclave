@@ -34,6 +34,15 @@ MAX_RECENT_SESSIONS = 4096
 MAX_SUPERVISOR_MESSAGE_BYTES = 4096
 
 
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise WorkerMessageError(f"duplicate supervisor field: {key}")
+        result[key] = value
+    return result
+
+
 class WorkerBrokerError(RuntimeError):
     """The worker event broker could not safely start or process a message."""
 
@@ -137,8 +146,7 @@ class UnixWorkerEventBroker:
                 raise WorkerBrokerError("created worker socket failed ownership validation")
             if stat.S_IMODE(info.st_mode) != socket_mode:
                 raise WorkerBrokerError(f"worker socket permissions must be {socket_mode:04o}")
-            if self.control_socket_path.exists() or self.control_socket_path.is_symlink():
-                raise WorkerBrokerError("supervisor control socket path already exists")
+            self._remove_stale_control_socket()
             self._control_server = await asyncio.start_unix_server(
                 self._handle_supervisor,
                 path=str(self.control_socket_path),
@@ -269,6 +277,31 @@ class UnixWorkerEventBroker:
             raise WorkerBrokerError("worker socket path changed during stale-socket check")
         self.socket_path.unlink()
 
+    def _remove_stale_control_socket(self) -> None:
+        try:
+            info = os.lstat(self.control_socket_path)
+        except FileNotFoundError:
+            return
+        if (
+            not stat.S_ISSOCK(info.st_mode)
+            or info.st_uid != os.geteuid()
+            or stat.S_IMODE(info.st_mode) != 0o600
+        ):
+            raise WorkerBrokerError("refusing to replace an unsafe supervisor control path")
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            result = probe.connect_ex(str(self.control_socket_path))
+        finally:
+            probe.close()
+        if result == 0:
+            raise WorkerBrokerError("another supervisor control socket is already listening")
+        if result != errno.ECONNREFUSED:
+            raise WorkerBrokerError("could not prove supervisor control socket is stale")
+        current = os.lstat(self.control_socket_path)
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise WorkerBrokerError("supervisor control socket changed during stale check")
+        self.control_socket_path.unlink()
+
     def _peer_credentials(self, writer: asyncio.StreamWriter) -> tuple[int, int]:
         peer = writer.get_extra_info("socket")
         if peer is None or not hasattr(socket, "SO_PEERCRED"):
@@ -293,7 +326,9 @@ class UnixWorkerEventBroker:
             )
             if len(frame) > MAX_SUPERVISOR_MESSAGE_BYTES:
                 raise WorkerMessageError("supervisor message exceeds the size limit")
-            payload = json.loads(frame[:-1].decode("utf-8"))
+            payload = json.loads(
+                frame[:-1].decode("utf-8"), object_pairs_hook=_unique_json_object
+            )
             required = {
                 "action", "session_id", "protocol", "source_ip", "source_port",
                 "worker_uid", "worker_pid",
@@ -339,7 +374,10 @@ class UnixWorkerEventBroker:
             }
             writer.write(b'{"registered":true}\n')
             await asyncio.wait_for(writer.drain(), timeout=self.client_idle_timeout)
-        except (WorkerMessageError, WorkerBrokerError, OSError, ValueError, KeyError, TypeError, TimeoutError):
+        except (
+            WorkerMessageError, WorkerBrokerError, OSError, ValueError, KeyError, TypeError,
+            TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError,
+        ):
             try:
                 writer.write(b'{"registered":false,"error":"registration rejected"}\n')
                 await writer.drain()
