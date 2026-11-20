@@ -19,6 +19,21 @@
 - MIRAGE observes interactions with its own decoys; it cannot inspect arbitrary commands/files on an attacker's device.
 - Defensive use only on owned/authorized systems. No retaliation. Attribution is probabilistic, not identity proof.
 
+
+
+## Product operating model — clarified 2026-11-20
+
+MIRAGE is a continuously running system-level monitor and adaptive-deception service, not a desktop application that must stay open.
+
+- **Observe continuously:** A background Linux daemon monitors traffic and correlates activity in real time.
+- **Preserve legitimate traffic:** Normal flows continue to their configured real services under policy.
+- **Disguise hostile-facing surfaces:** An enforcement point must sit before protected services can disclose application data. Suspicious flows are steered to coherent fabricated services; they are never forwarded to the real backend.
+- **Sandbox everything attacker-controlled:** Decoy interactions remain isolated from the host, production services, credentials, and internal networks. The current virtual terminal is simulation, not a hardened sandbox.
+- **Intervene selectively:** Detection and containment are separate. Blocking or throttling occurs only when an explicit policy threshold is met, with audit, expiry, and rollback.
+- **Keep the UI optional:** A tray client and full desktop dashboard are a later phase, after the daemon, monitoring, steering, sandbox, evidence, and recovery paths work. Closing the UI must not affect operation.
+
+The detailed design and release gates are in [docs/runtime-model.md](docs/runtime-model.md). The current loopback HTTP/SSH prototypes are not production interception, not hardened sandboxes, and must not be exposed beyond loopback.
+
 ## Status — 2026-11-04
 **M0 — project foundation: complete.**  
 **M1 — configuration and read-only discovery: COMPLETE.**  
@@ -152,8 +167,8 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 1. Validate the runnable local HTTP prototype on Python 3.12–3.14: run the full test suite and Ruff, then exercise the documented `serve-http` → `curl` → `verify-evidence` workflow on Ubuntu. The prototype must remain loopback-only.
 2. [x] Add verified operator session inspection with activity timelines, path/status summaries, and conservative heuristic indicators. Activity clusters are source/profile/idle-time groupings, not authenticated identity sessions.
 3. [x] Build the deterministic in-memory interactive decoy environment and add an experimental loopback-only SSH adapter. The adapter records redacted command metadata before returning simulated output; CI verification is pending.
-4. Design and test the isolation boundary before any real process execution: separate namespaces/cgroups, default-deny egress, no host mounts or credentials, resource limits, and a disposable-VM tier for higher-risk work.
-5. Implement independent fail-closed network enforcement only after isolation tests exist. No production interception or public listener until crash, telemetry-outage, rollback, and bypass tests prove protected services cannot be exposed.
+4. **Next engineering phase — sandbox boundary:** specify and test the first isolation tier for deterministic decoys, then add a hardened workload tier only after threat review. Define the daemon/privilege split, default-deny egress, no host mounts or credentials, resource limits, session isolation, and disposable-VM escalation. See `docs/runtime-model.md`.
+5. Build the always-on monitor and policy decision pipeline, then implement an independent enforcement adapter and selective steering in a controlled test environment. Prove the first-response boundary, legitimate-flow continuity, hostile-flow diversion, crash behaviour, telemetry outage, rollback, and bypass resistance before any production deployment.
 6. Deploy and independently validate the checkpoint service on a separately administered host before treating it as an independent evidence anchor. Continue target-Linux evidence benchmarks and exhaustive crash-boundary tests.
 7. Update this roadmap and CHANGELOG after each meaningful change.
 
