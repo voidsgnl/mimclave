@@ -126,7 +126,7 @@ for its limits and security boundaries.
 
 ### Sandbox worker evidence broker (IPC prototype)
 
-The worker evidence broker is a separate process boundary for future isolated decoy workers. It accepts bounded newline-delimited event messages over a private Linux Unix-domain socket, checks peer credentials with `SO_PEERCRED`, validates one session per connection and strictly increasing event sequence numbers, then writes accepted events through the existing hash-chained evidence store. Workers do not receive an evidence-file path or direct write access.
+The worker evidence broker is a separate process boundary for future isolated decoy workers. It accepts bounded newline-delimited event messages over a private Linux Unix-domain socket, checks peer credentials with `SO_PEERCRED`, validates one session per connection, rejects recent session-ID reuse, enforces strictly increasing event sequence numbers and idle timeouts, then writes accepted events through the existing hash-chained evidence store. The broker assigns the trusted profile ID and receipt timestamp; worker-claimed source IP/port values are discarded until a trusted supervisor registration flow binds the accepted client socket to the session. Workers do not receive an evidence-file path or direct write access.
 
 Create a private socket directory and start the broker:
 
