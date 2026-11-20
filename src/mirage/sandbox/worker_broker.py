@@ -61,7 +61,11 @@ def encode_supervisor_registration(
     if not isinstance(protocol, str) or protocol not in {"http", "https", "ssh"}:
         raise ValueError("protocol must be http, https, or ssh")
     normalized_ip = str(ip_address(source_ip))
-    if isinstance(source_port, bool) or not isinstance(source_port, int) or not 1 <= source_port <= 65535:
+    if (
+        isinstance(source_port, bool)
+        or not isinstance(source_port, int)
+        or not 1 <= source_port <= 65535
+    ):
         raise ValueError("source_port must be between 1 and 65535")
     if isinstance(worker_uid, bool) or not isinstance(worker_uid, int) or worker_uid < 0:
         raise ValueError("worker_uid must be a non-negative integer")
@@ -393,9 +397,17 @@ class UnixWorkerEventBroker:
             source_port = payload["source_port"]
             worker_uid = payload["worker_uid"]
             worker_pid = payload["worker_pid"]
-            if isinstance(source_port, bool) or not isinstance(source_port, int) or not 1 <= source_port <= 65535:
+            if (
+                isinstance(source_port, bool)
+                or not isinstance(source_port, int)
+                or not 1 <= source_port <= 65535
+            ):
                 raise WorkerMessageError("invalid registered source port")
-            if isinstance(worker_uid, bool) or not isinstance(worker_uid, int) or worker_uid not in self.allowed_uids:
+            if (
+                isinstance(worker_uid, bool)
+                or not isinstance(worker_uid, int)
+                or worker_uid not in self.allowed_uids
+            ):
                 raise WorkerMessageError("registered worker UID is not allowed")
             if isinstance(worker_pid, bool) or not isinstance(worker_pid, int) or worker_pid < 1:
                 raise WorkerMessageError("invalid registered worker PID")
