@@ -204,7 +204,11 @@ class _VirtualTerminalSession(_SESSION_BASE):  # type: ignore[misc,valid-type]
             self._finish(1)
             return
 
-        output = self._terminal.execute(command)
+        try:
+            output = self._terminal.execute(command)
+        except Exception:
+            self._finish(1)
+            return
         self._commands += 1
         if command.strip() == "clear":
             self._write("\\x1b[2J\\x1b[H")
