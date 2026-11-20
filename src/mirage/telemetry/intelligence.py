@@ -2,6 +2,7 @@
 
 from collections import Counter
 from datetime import datetime
+from ipaddress import ip_address
 from typing import Any
 
 SENSITIVE_PATHS = (
@@ -39,14 +40,19 @@ def _signals(events: list[dict[str, Any]], times: list[datetime]) -> list[dict[s
         signals.append({
             "code": "sensitive-path-probe",
             "severity": "medium",
-            "description": "Requests targeted paths commonly associated with exposed files or administration endpoints.",
+            "description": (
+                "Requests targeted paths commonly associated with exposed files "
+                "or administration endpoints."
+            ),
             "observations": ", ".join(sensitive[:8]),
         })
     if len(not_found_paths) >= 3:
         signals.append({
             "code": "not-found-sweep",
             "severity": "low",
-            "description": "Three or more distinct paths returned HTTP 404 in this activity cluster.",
+            "description": (
+                "Three or more distinct paths returned HTTP 404 in this activity cluster."
+            ),
             "observations": f"{len(not_found_paths)} distinct 404 paths",
         })
     repeated = sorted(path for path, count in path_counts.items() if count >= 5)
@@ -95,12 +101,30 @@ def build_activity_report(
         method = event.get("method")
         status_code = event.get("status_code")
         event_id = event.get("event_id")
-        if not all(isinstance(value, str) and value for value in (profile_id, path, method, event_id)):
+        if not all(
+            isinstance(value, str) and value
+            for value in (profile_id, path, method, event_id)
+        ):
             raise ValueError("evidence event is missing required text fields")
-        if not path.startswith("/") or "?" in path or "#" in path:
+        if (
+            not path.startswith("/")
+            or "?" in path
+            or "#" in path
+            or len(path) > 2048
+            or any(ord(char) < 32 for char in path)
+        ):
             raise ValueError("evidence event path is not a sanitized origin-form path")
-        if not isinstance(status_code, int) or isinstance(status_code, bool):
-            raise ValueError("evidence event status_code must be an integer")
+        if (
+            not isinstance(status_code, int)
+            or isinstance(status_code, bool)
+            or not 100 <= status_code <= 599
+        ):
+            raise ValueError("evidence event status_code must be between 100 and 599")
+        if source_ip is not None:
+            try:
+                ip_address(source_ip)
+            except ValueError as exc:
+                raise ValueError("evidence event source_ip is not a valid IP address") from exc
 
         key = (source_ip, profile_id) if source_ip is not None else (None, event_id)
         cluster_index = last_by_source.get(key)
@@ -142,9 +166,15 @@ def build_activity_report(
         cluster_events = cluster.pop("_events")
         times = cluster.pop("_times")
         cluster.pop("_last_time")
-        cluster["methods"] = dict(sorted(Counter(str(event["method"]) for event in cluster_events).items()))
-        cluster["paths"] = dict(sorted(Counter(str(event["path"]) for event in cluster_events).items()))
-        cluster["status_codes"] = dict(sorted(Counter(str(event["status_code"]) for event in cluster_events).items()))
+        cluster["methods"] = dict(
+            sorted(Counter(str(event["method"]) for event in cluster_events).items())
+        )
+        cluster["paths"] = dict(
+            sorted(Counter(str(event["path"]) for event in cluster_events).items())
+        )
+        cluster["status_codes"] = dict(
+            sorted(Counter(str(event["status_code"]) for event in cluster_events).items())
+        )
         cluster["indicators"] = _signals(cluster_events, times)
 
     return {

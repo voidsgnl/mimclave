@@ -140,7 +140,10 @@ def test_inspect_sessions_cli_refuses_tampered_evidence(tmp_path, capsys) -> Non
     store.append(factory.record_http_request(
         method="GET", target="/", status_code=200, source_ip="127.0.0.1"
     ))
-    path.write_text(path.read_text(encoding="utf-8").replace('"status_code":200', '"status_code":404'))
+    tampered = path.read_text(encoding="utf-8").replace(
+        '"status_code":200', '"status_code":404'
+    )
+    path.write_text(tampered, encoding="utf-8")
 
     assert cli.main(["inspect-sessions", str(path)]) == 2
     assert "Session inspection failed" in capsys.readouterr().err
