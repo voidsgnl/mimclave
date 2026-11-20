@@ -14,21 +14,22 @@ from mirage.sandbox.ipc import (
 
 
 def event(*, session_id: str | None = None, sequence: int = 1, **kwargs) -> WorkerEvent:
-    return WorkerEvent(
-        event_id=str(uuid4()),
-        session_id=session_id or str(uuid4()),
-        sequence=sequence,
-        event_type="http.request",
-        timestamp="2026-11-20T18:00:00+00:00",
-        profile_id="web-decoy",
-        protocol="http",
-        source_ip="192.0.2.10",
-        source_port=49152,
-        method="GET",
-        request_path="/login",
-        status_code=200,
-        **kwargs,
-    )
+    values = {
+        "event_id": str(uuid4()),
+        "session_id": session_id or str(uuid4()),
+        "sequence": sequence,
+        "event_type": "http.request",
+        "timestamp": "2026-11-20T18:00:00+00:00",
+        "profile_id": "web-decoy",
+        "protocol": "http",
+        "source_ip": "192.0.2.10",
+        "source_port": 49152,
+        "method": "GET",
+        "request_path": "/login",
+        "status_code": 200,
+    }
+    values.update(kwargs)
+    return WorkerEvent(**values)
 
 
 def test_worker_event_round_trip_is_deterministic() -> None:
@@ -89,7 +90,7 @@ def test_worker_event_rejects_unsafe_metadata(kwargs, message: str) -> None:
         event(**kwargs)
 
 
-def test_encoder_rejects_oversized_event() -> None:
+def test_event_rejects_oversized_request_path() -> None:
     with pytest.raises(WorkerMessageError, match="sanitized"):
         event(request_path="/" + ("a" * 3000))
 
