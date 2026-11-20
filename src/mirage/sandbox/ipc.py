@@ -215,8 +215,8 @@ class WorkerEventSequenceGuard:
         self._max_sessions = max_sessions
         self._last_sequence: dict[str, int] = {}
 
-    def accept(self, event: WorkerEvent) -> None:
-        """Accept the next event or raise without changing sequence state."""
+    def validate(self, event: WorkerEvent) -> None:
+        """Check the next event without changing sequence state."""
 
         previous = self._last_sequence.get(event.session_id)
         if previous is None:
@@ -226,6 +226,11 @@ class WorkerEventSequenceGuard:
                 raise WorkerMessageError("first event in a session must have sequence 1")
         elif event.sequence != previous + 1:
             raise WorkerMessageError("worker event sequence is not strictly increasing")
+
+    def accept(self, event: WorkerEvent) -> None:
+        """Commit the next sequence after its evidence record is durable."""
+
+        self.validate(event)
         self._last_sequence[event.session_id] = event.sequence
 
     def close_session(self, session_id: str) -> None:
