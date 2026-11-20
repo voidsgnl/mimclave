@@ -21,6 +21,7 @@ from mirage.telemetry.intelligence import build_activity_report, render_activity
 from mirage.telemetry.segmented import SegmentedEvidenceStore
 from mirage.telemetry.store import EvidenceStoreError, JsonlEvidenceStore
 from mirage.transport.http_server import HttpDecoyServer
+from mirage.transport.ssh_server import SSHDecoyServer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +66,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--evidence", type=Path, default=Path("mirage-evidence.jsonl"),
         help="append-only evidence file (default: ./mirage-evidence.jsonl)",
     )
+    ssh = subparsers.add_parser(
+        "serve-ssh", help="run a loopback-only SSH virtual terminal decoy"
+    )
+    ssh.add_argument("--host", default="127.0.0.1", help="literal loopback IP only")
+    ssh.add_argument("--port", type=int, default=2222)
+    ssh.add_argument("--host-key", type=Path, required=True, help="dedicated SSH host private key")
+    ssh.add_argument(
+        "--evidence", type=Path, default=Path("var/mirage/ssh-events.jsonl"),
+        help="append-only SSH interaction evidence file",
+    )
+    ssh.add_argument("--profile-id", default="local-ssh")
+    ssh.add_argument("--max-sessions", type=int, default=8)
+    ssh.add_argument("--idle-timeout", type=float, default=30.0)
     migrate = subparsers.add_parser(
         "migrate-evidence", help="migrate a legacy JSONL evidence log to segmented storage"
     )
@@ -140,6 +154,40 @@ async def _serve_http(args: argparse.Namespace) -> None:
     host, port = server.address
     print(
         f"MIRAGE HTTP decoy listening on http://{host}:{port} "
+        f"(profile={args.profile_id}; evidence={args.evidence})",
+        flush=True,
+    )
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await server.close()
+
+
+async def _serve_ssh(args: argparse.Namespace) -> None:
+    try:
+        address = ip_address(args.host)
+    except ValueError as exc:
+        raise ValueError("host must be a literal loopback IP address") from exc
+    if not address.is_loopback:
+        raise ValueError("MIRAGE SSH prototype listeners are restricted to loopback addresses")
+
+    args.evidence.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    store = JsonlEvidenceStore(args.evidence)
+    if args.evidence.exists():
+        store.verify()
+    server = SSHDecoyServer(
+        event_sink=store.append,
+        host_key=args.host_key,
+        profile_id=args.profile_id,
+        host=str(address),
+        port=args.port,
+        max_sessions=args.max_sessions,
+        idle_timeout=args.idle_timeout,
+    )
+    await server.start()
+    host, port = server.address
+    print(
+        f"MIRAGE SSH decoy listening on {host}:{port} "
         f"(profile={args.profile_id}; evidence={args.evidence})",
         flush=True,
     )
@@ -233,6 +281,17 @@ def main(argv: list[str] | None = None) -> int:
             ConfigLoadError, EvidenceStoreError, OSError, ValueError, RuntimeError
         ) as exc:
             print(f"HTTP decoy failed: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.command == "serve-ssh":
+        try:
+            asyncio.run(_serve_ssh(args))
+        except KeyboardInterrupt:
+            print("\\nMIRAGE SSH decoy stopped.", flush=True)
+            return 130
+        except (EvidenceStoreError, OSError, RuntimeError, ValueError) as exc:
+            print(f"SSH decoy failed: {exc}", file=sys.stderr)
             return 2
         return 0
 
