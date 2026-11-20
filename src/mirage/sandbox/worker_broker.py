@@ -58,7 +58,7 @@ def encode_supervisor_registration(
             raise ValueError
     except (ValueError, AttributeError) as exc:
         raise ValueError("session_id must be a canonical UUID") from exc
-    if protocol not in {"http", "https", "ssh"}:
+    if not isinstance(protocol, str) or protocol not in {"http", "https", "ssh"}:
         raise ValueError("protocol must be http, https, or ssh")
     normalized_ip = str(ip_address(source_ip))
     if isinstance(source_port, bool) or not isinstance(source_port, int) or not 1 <= source_port <= 65535:
@@ -196,9 +196,10 @@ class UnixWorkerEventBroker:
                 limit=MAX_SUPERVISOR_MESSAGE_BYTES + 1,
                 backlog=16,
             )
-            os.chmod(self.control_socket_path, 0o600, follow_symlinks=False)
             control_info = os.lstat(self.control_socket_path)
             self._control_socket_identity = (control_info.st_dev, control_info.st_ino)
+            os.chmod(self.control_socket_path, 0o600, follow_symlinks=False)
+            control_info = os.lstat(self.control_socket_path)
             if (
                 not stat.S_ISSOCK(control_info.st_mode)
                 or control_info.st_uid != os.geteuid()
