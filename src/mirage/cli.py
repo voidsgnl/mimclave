@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("discover", help="list local TCP listeners and bound UDP sockets")
     validate = subparsers.add_parser("validate-config", help="validate a TOML configuration")
     validate.add_argument("path", type=Path, help="path to MIRAGE TOML configuration")
+    verify = subparsers.add_parser("verify-evidence", help="verify a local evidence chain")
+    verify.add_argument("path", type=Path, help="JSONL evidence file to verify")
     serve = subparsers.add_parser(
         "serve-http", help="run a loopback-only HTTP decoy and record interactions"
     )
@@ -151,6 +153,18 @@ def main(argv: list[str] | None = None) -> int:
             f"{len(config.profiles)} profile(s), "
             f"{len(config.mappings)} listener mapping(s), "
             f"{len(config.protected_services)} protected service record(s)."
+        )
+        return 0
+
+    if args.command == "verify-evidence":
+        try:
+            verification = JsonlEvidenceStore(args.path).verify()
+        except EvidenceStoreError as exc:
+            print(f"Evidence verification failed: {exc}", file=sys.stderr)
+            return 2
+        print(
+            f"Evidence verified: {verification.record_count} record(s); "
+            f"head hash {verification.head_hash}."
         )
         return 0
 
