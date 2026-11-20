@@ -151,7 +151,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 ## Resume here — exact next steps
 1. Validate the runnable local HTTP prototype on Python 3.12–3.14: run the full test suite and Ruff, then exercise the documented `serve-http` → `curl` → `verify-evidence` workflow on Ubuntu. The prototype must remain loopback-only.
 2. [x] Add verified operator session inspection with activity timelines, path/status summaries, and conservative heuristic indicators. Activity clusters are source/profile/idle-time groupings, not authenticated identity sessions.
-3. Build the first deterministic interactive decoy environment (fake users, files, processes, and command responses) without executing arbitrary host commands. Every interaction must be recorded before its response is returned.
+3. [x] Build the deterministic in-memory interactive decoy environment and add an experimental loopback-only SSH adapter. The adapter records redacted command metadata before returning simulated output; CI verification is pending.
 4. Design and test the isolation boundary before any real process execution: separate namespaces/cgroups, default-deny egress, no host mounts or credentials, resource limits, and a disposable-VM tier for higher-risk work.
 5. Implement independent fail-closed network enforcement only after isolation tests exist. No production interception or public listener until crash, telemetry-outage, rollback, and bypass tests prove protected services cannot be exposed.
 6. Deploy and independently validate the checkpoint service on a separately administered host before treating it as an independent evidence anchor. Continue target-Linux evidence benchmarks and exhaustive crash-boundary tests.
@@ -265,7 +265,16 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - Added `src/mirage/emulation/terminal.py` and `mirage simulate-terminal`.
 - The interpreter uses only fabricated in-memory files, users, and process output. Supported commands: `help`, `whoami`, `hostname`, `pwd`, `id`, `uname`, `ls`, `cat`, `ps`, `cd`, and `clear`.
 - Strictly rejects shell operators, redirects, pipes, expansions, traversal, excessive input, unsupported options, and unknown commands. No shell, subprocess, host filesystem, or network calls.
-- This is a local simulator only. Do not describe it as a network-accessible interactive honeypot yet. The next step is a separately bounded protocol adapter (likely SSH) with per-connection virtual terminal state and redacted, hash-chained interaction events, followed by transport-specific isolation and resource limits.
+- The local simulator remains the command execution boundary. The experimental SSH adapter described below exposes it only on loopback; it is not a production or public honeypot.
+
+### Experimental SSH transport milestone — 2026-11-20 (CI pending)
+- Added optional AsyncSSH-based `SSHDecoyServer` and `mirage serve-ssh`. The listener requires a dedicated operator-provisioned host key with restrictive file permissions and accepts literal loopback addresses only.
+- Each SSH process/channel receives a fresh in-memory `VirtualTerminal`; no host shell, subprocess, filesystem, network forwarding, SFTP, agent forwarding, or X11 is exposed.
+- Added connection/session caps, login timeout, bounded SSH channel window, per-command absolute input deadline, 512-character command limit, and 100-command interactive session limit.
+- SSH authentication is intentionally disabled for this local deception prototype. The server does not request or store passwords or client keys. It also omits usernames, full command lines, and arguments from evidence; only normalized command names and source/session metadata are recorded.
+- Command output is sent only after the event sink has appended and fsynced the event. Evidence failure exits the SSH process without returning simulated output.
+- Added integration tests for loopback/key policy, remote command execution, interactive per-session filesystem isolation, metadata redaction, and evidence failure. Tests and Ruff have not yet been run locally; GitHub Actions verification is pending.
+- This remains a loopback-only prototype. Do not expose it to a LAN or the internet. It is not an isolated sandbox and does not provide independent network enforcement.
 
 ### CI blocker — investigate before release
 - The latest `main` head before the virtual-terminal work was `0c44fcfdd74bba21b6518781c65e36d37a3231b7`.
@@ -280,7 +289,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - If local tests pass, rerun or inspect the GitHub Actions workflow and obtain job-level logs before relying on CI.
 
 ### Current boundary and next work
-- Current verified prototype: loopback HTTP decoy, hash-chained evidence, evidence verification, heuristic session inspection, and local in-memory terminal simulation.
-- Still not implemented: network-facing interactive terminal protocol, production traffic interception, independent enforcement, isolated sandbox execution, remote interaction evidence capture for terminal sessions, management API/dashboard, and production deployment.
+- Current prototype: loopback HTTP decoy, experimental loopback SSH terminal adapter, hash-chained evidence, evidence verification, heuristic session inspection, and local in-memory terminal simulation. SSH CI verification is pending.
+- Still not implemented: production traffic interception, independent enforcement, isolated sandbox execution, management API/dashboard, and production deployment. The SSH transport is experimental and loopback-only; it does not constitute sandbox isolation.
 - Preserve the local evidence log; never overwrite or silently reset it.
 - Continue on `main`; do not create branches unless explicitly requested.
