@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from mirage import cli
 from mirage.cli import _create_http_server
 from mirage.telemetry.store import JsonlEvidenceStore
 
@@ -67,6 +68,7 @@ def test_local_http_prototype_serves_and_records_request(tmp_path) -> None:
     assert '"/"' in recorded
     assert "must-not-be-recorded" not in recorded
     assert "attacker.example.test" not in recorded
+    assert cli.main(["verify-evidence", str(evidence)]) == 0
 
 
 def test_local_http_prototype_rejects_non_loopback_host(tmp_path) -> None:
