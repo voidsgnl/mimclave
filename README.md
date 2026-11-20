@@ -45,7 +45,7 @@ From the repository root, start the prototype with:
 ./start.sh
 ```
 
-The script validates the configuration, creates a private `var/mirage/` evidence directory, and starts the decoy on `127.0.0.1:8080`. Set `MIRAGE_PORT` to use another local port, for example `MIRAGE_PORT=8081 ./start.sh`. It uses the repository's `.venv/bin/mirage` when available, otherwise the installed `mirage` command.
+The script validates the configuration, creates a private `var/mirage/` evidence directory, and starts the decoy on `127.0.0.1:8080`. Set `MIRAGE_PORT` to use another local port, for example `MIRAGE_PORT=8081 ./start.sh`. If MIRAGE is not installed, the script asks permission to create a local `.venv` and install the project before continuing. On Ubuntu, if virtual-environment creation fails because the venv package is missing, install it with `sudo apt install python3-venv` and run the script again.
 
 In another terminal, interact with the decoy:
 
@@ -57,7 +57,7 @@ curl -i http://127.0.0.1:8080/login
 Stop the server with Ctrl+C, then verify the recorded chain:
 
 ```bash
-mirage verify-evidence ./var/mirage/events.jsonl
+./.venv/bin/mirage verify-evidence ./var/mirage/events.jsonl
 ```
 
 The prototype binds only to a literal loopback IP. It does not forward requests to a protected service, alter firewall rules, expose a public listener, or execute submitted commands. Use the separate `config/prototype-http.toml` example rather than the illustrative HTTPS configuration. `mirage discover` lists locally visible TCP listeners and bound UDP sockets as JSON; UDP entries are bound-socket observations, not proof that an application-level service is responsive. The explicit `mirage migrate-evidence` command migrates a legacy log after an independently hosted HTTPS checkpoint service has been configured; its bearer token is read from `MIRAGE_CHECKPOINT_TOKEN`, never from a command-line argument. See [Evidence Segments](docs/evidence-segments.md) for migration and recovery instructions.
