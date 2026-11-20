@@ -155,3 +155,43 @@ class SessionEventFactory:
             source_port=source_port,
             user_agent=captured_agent,
         )
+
+    def record_terminal_command(
+        self,
+        *,
+        command_name: str,
+        source_ip: str | None = None,
+        source_port: int | None = None,
+    ) -> SessionEvent:
+        """Record command metadata only; never retain command arguments or input."""
+        import re
+
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", command_name):
+            raise ValueError("command_name must be a bounded command identifier")
+        if source_ip is not None:
+            try:
+                source_ip = str(ip_address(source_ip))
+            except ValueError as exc:
+                raise ValueError("source_ip must be a valid IP address") from exc
+        if source_port is not None and not 1 <= source_port <= 65535:
+            raise ValueError("source_port must be between 1 and 65535")
+
+        timestamp = self._clock()
+        _validate_utc(timestamp)
+        with self._lock:
+            self._sequence += 1
+            sequence = self._sequence
+
+        return SessionEvent(
+            event_id=str(uuid4()),
+            session_id=self.session_id,
+            sequence=sequence,
+            occurred_at=timestamp,
+            profile_id=self.profile_id,
+            event_type="ssh.command",
+            method="SSH",
+            path=f"/terminal/{command_name}",
+            status_code=200,
+            source_ip=source_ip,
+            source_port=source_port,
+        )
