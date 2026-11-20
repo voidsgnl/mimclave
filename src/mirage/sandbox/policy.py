@@ -138,7 +138,10 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
 
     if policy.network_mode not in tuple(NetworkMode):
         issues.append(
-            SandboxPolicyIssue("unknown_network_mode", f"unsupported network mode: {policy.network_mode!r}")
+            SandboxPolicyIssue(
+                "unknown_network_mode",
+                f"unsupported network mode: {policy.network_mode!r}",
+            )
         )
 
     if not isinstance(policy.limits, SandboxLimits):
@@ -165,7 +168,8 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
             issues.append(
                 SandboxPolicyIssue(
                     "simulation_runtime_controls",
-                    "simulation tier does not claim operating-system namespace or seccomp isolation",
+                    "simulation tier does not claim operating-system namespace "
+                    "or seccomp isolation",
                 )
             )
 
