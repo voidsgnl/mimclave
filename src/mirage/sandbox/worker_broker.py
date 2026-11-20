@@ -95,6 +95,7 @@ class UnixWorkerEventBroker:
         self._sequence_guard = WorkerEventSequenceGuard(max_sessions=max_clients)
         self._active_clients = 0
         self._writers: set[asyncio.StreamWriter] = set()
+        self._client_tasks: set[asyncio.Task[None]] = set()
         self._recent_session_ids: set[str] = set()
         self._recent_session_order: deque[str] = deque()
         self._commit_lock = asyncio.Lock()
@@ -148,6 +149,9 @@ class UnixWorkerEventBroker:
                 *(writer.wait_closed() for writer in writers),
                 return_exceptions=True,
             )
+        tasks = tuple(task for task in self._client_tasks if task is not asyncio.current_task())
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         identity, self._socket_identity = self._socket_identity, None
         if identity is None:
             return
@@ -280,6 +284,9 @@ class UnixWorkerEventBroker:
     ) -> None:
         self._active_clients += 1
         self._writers.add(writer)
+        task = asyncio.current_task()
+        if task is not None:
+            self._client_tasks.add(task)
         session_id: str | None = None
         try:
             if self._active_clients > self.max_clients:
@@ -347,6 +354,8 @@ class UnixWorkerEventBroker:
                 self._sequence_guard.close_session(session_id)
             self._active_clients = max(0, self._active_clients - 1)
             self._writers.discard(writer)
+            if task is not None:
+                self._client_tasks.discard(task)
             writer.close()
             try:
                 await writer.wait_closed()
