@@ -81,7 +81,7 @@ def test_local_http_prototype_rejects_non_loopback_host(tmp_path) -> None:
 
 
 def test_local_http_prototype_rejects_https_profile(tmp_path) -> None:
-    https_config = HTTP_CONFIG.replace('protocol = "http"', 'protocol = "https"')
+    https_config = HTTP_CONFIG.replace('protocol = "http"', 'protocol = "https"').replace('port = 8080', 'port = 443')
     with pytest.raises(ValueError, match="HTTP profiles only"):
         _create_http_server(
             _write_config(tmp_path, https_config),
