@@ -92,6 +92,7 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
         )
         await server.start()
         host, port = server.address
+        client = None
         try:
             client = await asyncio.create_subprocess_exec(
                 ssh,
@@ -113,7 +114,7 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
             )
             stdout, stderr = await asyncio.wait_for(
                 client.communicate(b"cd /home/deploy\\npwd\\nexit\\n"),
-                timeout=10,
+                timeout=5,
             )
             assert client.returncode == 0, stderr.decode(errors="replace")
             output = stdout.decode(errors="replace")
@@ -123,6 +124,9 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
                 "/terminal/pwd",
             ]
         finally:
+            if client is not None and client.returncode is None:
+                client.kill()
+                await client.wait()
             await server.close()
 
     asyncio.run(scenario())
