@@ -7,6 +7,7 @@ evidence store. This is an IPC transport prototype, not an OS sandbox.
 import asyncio
 import errno
 import json
+from collections import deque
 import os
 from pathlib import Path
 import socket
@@ -25,7 +26,7 @@ from mirage.telemetry.events import SessionEvent
 from mirage.telemetry.store import EvidenceStoreError, JsonlEvidenceStore
 
 MAX_BROKER_CLIENTS = 64
-ACK_BYTES = 256
+MAX_RECENT_SESSIONS = 4096
 
 
 class WorkerBrokerError(RuntimeError):
@@ -43,6 +44,7 @@ class UnixWorkerEventBroker:
         allowed_uids: set[int] | None = None,
         socket_gid: int | None = None,
         max_clients: int = MAX_BROKER_CLIENTS,
+        client_idle_timeout: float = 30.0,
     ) -> None:
         requested_path = Path(socket_path)
         if requested_path.name in {"", ".", ".."}:
@@ -73,11 +75,21 @@ class UnixWorkerEventBroker:
             raise ValueError(
                 "allowed_uids must be explicit when a worker socket group is configured"
             )
+        if (
+            isinstance(client_idle_timeout, bool)
+            or not isinstance(client_idle_timeout, (int, float))
+            or not 0.1 <= client_idle_timeout <= 3600
+        ):
+            raise ValueError("client_idle_timeout must be between 0.1 and 3600 seconds")
         self.socket_gid = socket_gid
         self.max_clients = max_clients
+        self.client_idle_timeout = float(client_idle_timeout)
         self._server: asyncio.AbstractServer | None = None
         self._sequence_guard = WorkerEventSequenceGuard(max_sessions=max_clients)
         self._active_clients = 0
+        self._writers: set[asyncio.StreamWriter] = set()
+        self._recent_session_ids: set[str] = set()
+        self._recent_session_order: deque[str] = deque()
         self._commit_lock = asyncio.Lock()
         self._socket_identity: tuple[int, int] | None = None
 
@@ -94,6 +106,8 @@ class UnixWorkerEventBroker:
                 limit=MAX_WORKER_MESSAGE_BYTES + 1,
                 backlog=self.max_clients,
             )
+            created_info = os.lstat(self.socket_path)
+            self._socket_identity = (created_info.st_dev, created_info.st_ino)
             if self.socket_gid is not None:
                 os.chown(self.socket_path, -1, self.socket_gid, follow_symlinks=False)
             socket_mode = 0o600 if self.socket_gid is None else 0o660
@@ -107,7 +121,6 @@ class UnixWorkerEventBroker:
                 raise WorkerBrokerError("created worker socket failed ownership validation")
             if stat.S_IMODE(info.st_mode) != socket_mode:
                 raise WorkerBrokerError(f"worker socket permissions must be {socket_mode:04o}")
-            self._socket_identity = (info.st_dev, info.st_ino)
         except (OSError, RuntimeError) as exc:
             await self.close()
             if isinstance(exc, WorkerBrokerError):
@@ -120,6 +133,14 @@ class UnixWorkerEventBroker:
         if server is not None:
             server.close()
             await server.wait_closed()
+        writers = tuple(self._writers)
+        for writer in writers:
+            writer.close()
+        if writers:
+            await asyncio.gather(
+                *(writer.wait_closed() for writer in writers),
+                return_exceptions=True,
+            )
         identity, self._socket_identity = self._socket_identity, None
         if identity is None:
             return
@@ -250,6 +271,7 @@ class UnixWorkerEventBroker:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         self._active_clients += 1
+        self._writers.add(writer)
         session_id: str | None = None
         try:
             if self._active_clients > self.max_clients:
@@ -257,7 +279,11 @@ class UnixWorkerEventBroker:
             self._peer_uid(writer)
             while True:
                 try:
-                    frame = await reader.readuntil(b"\n")
+                    frame = await asyncio.wait_for(
+                        reader.readuntil(b"\n"), timeout=self.client_idle_timeout
+                    )
+                except TimeoutError:
+                    break
                 except asyncio.IncompleteReadError as exc:
                     if exc.partial:
                         raise WorkerMessageError(
@@ -271,7 +297,10 @@ class UnixWorkerEventBroker:
                 if len(frame) > MAX_WORKER_MESSAGE_BYTES:
                     raise WorkerMessageError("worker frame exceeds the configured size limit")
                 event = decode_worker_event(frame)
-                if session_id is None:
+                first_event = session_id is None
+                if first_event:
+                    if event.session_id in self._recent_session_ids:
+                        raise WorkerMessageError("worker session ID has already been used")
                     session_id = event.session_id
                 elif event.session_id != session_id:
                     raise WorkerMessageError(
@@ -283,14 +312,22 @@ class UnixWorkerEventBroker:
                     self._sequence_guard.validate(event)
                     await asyncio.to_thread(self.evidence_store.append, session_event)
                     self._sequence_guard.accept(event)
+                    if first_event:
+                        self._recent_session_ids.add(event.session_id)
+                        self._recent_session_order.append(event.session_id)
+                        if len(self._recent_session_order) > MAX_RECENT_SESSIONS:
+                            expired = self._recent_session_order.popleft()
+                            self._recent_session_ids.discard(expired)
                 writer.write(
                     json.dumps(
                         {"accepted": True, "event_id": event.event_id, "sequence": event.sequence},
                         separators=(",", ":"),
                     ).encode("ascii") + b"\n"
                 )
-                await writer.drain()
-        except (WorkerMessageError, WorkerBrokerError, EvidenceStoreError, OSError):
+                await asyncio.wait_for(
+                    writer.drain(), timeout=self.client_idle_timeout
+                )
+        except (WorkerMessageError, WorkerBrokerError, EvidenceStoreError, OSError, ValueError):
             # Do not disclose filesystem paths, evidence contents, or internal errors.
             try:
                 writer.write(b'{"accepted":false,"error":"event rejected"}\n')
@@ -301,6 +338,7 @@ class UnixWorkerEventBroker:
             if session_id is not None:
                 self._sequence_guard.close_session(session_id)
             self._active_clients = max(0, self._active_clients - 1)
+            self._writers.discard(writer)
             writer.close()
             try:
                 await writer.wait_closed()
