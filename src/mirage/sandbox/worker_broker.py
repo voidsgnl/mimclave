@@ -523,7 +523,6 @@ class UnixWorkerEventBroker:
                         registration["worker_uid"] != peer_uid
                         or registration["worker_pid"] != peer_pid
                         or registration["protocol"] != event.protocol
-                        or registration.get("claimed", False)
                     ):
                         raise WorkerMessageError("worker identity does not match registration")
                     session_id = event.session_id
@@ -539,11 +538,14 @@ class UnixWorkerEventBroker:
                     raise WorkerMessageError("worker session registration expired")
                 session_event = self._to_session_event(event, registration)
                 async with self._commit_lock:
+                    if first_event:
+                        if registration.get("claimed", False):
+                            raise WorkerMessageError("worker session is already claimed")
+                        registration["claimed"] = True
                     self._sequence_guard.validate(event)
                     await asyncio.to_thread(self.evidence_store.append, session_event)
                     self._sequence_guard.accept(event)
                     if first_event:
-                        registration["claimed"] = True
                         self._recent_session_ids.add(event.session_id)
                         self._recent_session_order.append(event.session_id)
                         if len(self._recent_session_order) > MAX_RECENT_SESSIONS:
