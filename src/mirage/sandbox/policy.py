@@ -87,7 +87,7 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
 
     issues: list[SandboxPolicyIssue] = []
 
-    if not _POLICY_ID.fullmatch(policy.policy_id):
+    if not isinstance(policy.policy_id, str) or not _POLICY_ID.fullmatch(policy.policy_id):
         issues.append(
             SandboxPolicyIssue(
                 "invalid_policy_id",
@@ -95,7 +95,12 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
             )
         )
 
-    unknown_namespaces = set(policy.namespaces) - _ALLOWED_NAMESPACES
+    namespace_names = tuple(name for name in policy.namespaces if isinstance(name, str))
+    if len(namespace_names) != len(policy.namespaces):
+        issues.append(
+            SandboxPolicyIssue("invalid_namespace_name", "namespace names must be strings")
+        )
+    unknown_namespaces = set(namespace_names) - _ALLOWED_NAMESPACES
     if unknown_namespaces:
         issues.append(
             SandboxPolicyIssue(
@@ -103,7 +108,7 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
                 f"unsupported namespace names: {', '.join(sorted(unknown_namespaces))}",
             )
         )
-    if len(policy.namespaces) != len(set(policy.namespaces)):
+    if len(namespace_names) != len(set(namespace_names)):
         issues.append(
             SandboxPolicyIssue("duplicate_namespace", "namespace names must be unique")
         )
@@ -129,6 +134,16 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
                 "capabilities_forbidden",
                 "sandbox workloads must drop all Linux capabilities",
             )
+        )
+
+    if policy.network_mode not in tuple(NetworkMode):
+        issues.append(
+            SandboxPolicyIssue("unknown_network_mode", f"unsupported network mode: {policy.network_mode!r}")
+        )
+
+    if not isinstance(policy.limits, SandboxLimits):
+        issues.append(
+            SandboxPolicyIssue("invalid_resource_limits", "limits must be a SandboxLimits instance")
         )
 
     if policy.tier == SandboxTier.SIMULATION:
@@ -163,7 +178,10 @@ def validate_sandbox_policy(policy: SandboxPolicy) -> list[SandboxPolicyIssue]:
                     f"isolated worker requires namespaces: {', '.join(sorted(missing))}",
                 )
             )
-        if not policy.seccomp_profile or not _SECCOMP_PROFILE.fullmatch(policy.seccomp_profile):
+        if (
+            not isinstance(policy.seccomp_profile, str)
+            or not _SECCOMP_PROFILE.fullmatch(policy.seccomp_profile)
+        ):
             issues.append(
                 SandboxPolicyIssue(
                     "invalid_seccomp_profile",
