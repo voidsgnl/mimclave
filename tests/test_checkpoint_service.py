@@ -9,12 +9,12 @@ from dataclasses import asdict
 
 import pytest
 
-from mirage.telemetry.checkpoint_service import create_checkpoint_server
-from mirage.telemetry.checkpoints import EvidenceCheckpoint
+from mimclave.telemetry.checkpoint_service import create_checkpoint_server
+from mimclave.telemetry.checkpoints import EvidenceCheckpoint
 
 
-TOKEN = "mirage-test-checkpoint-token-0123456789abcdef"
-RESOURCE = "/v1/mirage/checkpoint"
+TOKEN = "mimclave-test-checkpoint-token-0123456789abcdef"
+RESOURCE = "/v1/mimclave/checkpoint"
 
 
 @pytest.fixture

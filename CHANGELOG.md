@@ -1,3 +1,7 @@
+## Renamed
+
+This project was renamed from MIRAGE to MIMCLAVE. Earlier entries below use the original name.
+
 # Changelog
 
 All notable project changes are documented here.

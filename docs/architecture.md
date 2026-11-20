@@ -1,8 +1,8 @@
-# MIRAGE Architecture
+# MIMCLAVE Architecture
 
-## Product operating model\n\nMIRAGE is intended to run continuously as a system-level Linux service. It observes traffic continuously, preserves normal service for legitimate traffic, and selectively steers suspicious traffic to a fabricated deception plane. The enforcement point must be in place before protected services can return application data; a passive detector that reacts only after a real banner or response has escaped is insufficient. All attacker-controlled interactions stay inside isolated sandboxes. A future tray and desktop dashboard are optional management clients and must never be required for runtime operation. See [Runtime and Adaptive Deception Model](runtime-model.md) for the detailed flow and release gates.\n\n## System boundary
+## Product operating model\n\nMIMCLAVE is intended to run continuously as a system-level Linux service. It observes traffic continuously, preserves normal service for legitimate traffic, and selectively steers suspicious traffic to a fabricated deception plane. The enforcement point must be in place before protected services can return application data; a passive detector that reacts only after a real banner or response has escaped is insufficient. All attacker-controlled interactions stay inside isolated sandboxes. A future tray and desktop dashboard are optional management clients and must never be required for runtime operation. See [Runtime and Adaptive Deception Model](runtime-model.md) for the detailed flow and release gates.\n\n## System boundary
 
-MIRAGE is initially a host-level defensive deception system. It discovers protected services, then presents separately configured decoys to untrusted clients. The protected services and decoy execution plane are separate security domains.
+MIMCLAVE is initially a host-level defensive deception system. It discovers protected services, then presents separately configured decoys to untrusted clients. The protected services and decoy execution plane are separate security domains.
 
 Conceptual flow:
 
@@ -23,7 +23,7 @@ The implementation must prove this separation with network and filesystem tests 
 - **Interception:** Applies host-level network rules. This layer must fail closed and must not depend on the application remaining healthy.
 - **Decoy runtime:** Implements protocol-compatible fake services.
 - **Sandbox:** Runs simulated commands or disposable workloads with strict resource and network boundaries.
-- **Telemetry:** Captures commands issued within MIRAGE-controlled sessions, protocol events, and session metadata.
+- **Telemetry:** Captures commands issued within MIMCLAVE-controlled sessions, protocol events, and session metadata.
 - **Intelligence:** Correlates observable indicators across sessions and records confidence and provenance.
 - **Evidence:** Stores integrity-protected event records and exportable timelines.
 - **Management API/UI:** Allows an authenticated operator to configure and monitor the platform.

@@ -4,18 +4,18 @@ import shutil
 
 import pytest
 
-import mirage.telemetry.segmented as segmented_module
-from mirage.telemetry.checkpoints import (
+import mimclave.telemetry.segmented as segmented_module
+from mimclave.telemetry.checkpoints import (
     CheckpointConflictError,
     CheckpointError,
     EvidenceCheckpoint,
 )
-from mirage.telemetry.events import SessionEventFactory
-from mirage.telemetry.segmented import (
+from mimclave.telemetry.events import SessionEventFactory
+from mimclave.telemetry.segmented import (
     SegmentedEvidenceStore,
     _rename_directory_noreplace,
 )
-from mirage.telemetry.store import (
+from mimclave.telemetry.store import (
     EvidenceIntegrityError, EvidenceStoreError, JsonlEvidenceStore
 )
 
@@ -364,11 +364,11 @@ def test_reopen_after_successor_manifest_before_file_creation(tmp_path, monkeypa
             raise RuntimeError("simulated process crash")
         return original_open(path, *args, **kwargs)
 
-    monkeypatch.setattr("mirage.telemetry.segmented.os.open", interrupt_successor_create)
+    monkeypatch.setattr("mimclave.telemetry.segmented.os.open", interrupt_successor_create)
     with pytest.raises(RuntimeError, match="simulated"):
         store.rotate()
 
-    monkeypatch.setattr("mirage.telemetry.segmented.os.open", original_open)
+    monkeypatch.setattr("mimclave.telemetry.segmented.os.open", original_open)
     reopened = SegmentedEvidenceStore(
         store.directory,
         max_segment_bytes=500,
@@ -575,7 +575,7 @@ def test_initialization_recovers_manifest_before_segment_creation(tmp_path, monk
             raise RuntimeError("simulated process crash")
         return original_open(path, *args, **kwargs)
 
-    monkeypatch.setattr("mirage.telemetry.segmented.os.open", interrupt_segment_create)
+    monkeypatch.setattr("mimclave.telemetry.segmented.os.open", interrupt_segment_create)
     with pytest.raises(RuntimeError, match="simulated"):
         SegmentedEvidenceStore(
             directory,
@@ -644,7 +644,7 @@ def test_append_retry_is_idempotent_after_fsync_before_receipt(
         original_fsync(fd)
         raise RuntimeError("simulated process crash after fsync")
 
-    monkeypatch.setattr("mirage.telemetry.segmented.os.fsync", interrupt_after_fsync)
+    monkeypatch.setattr("mimclave.telemetry.segmented.os.fsync", interrupt_after_fsync)
     with pytest.raises(RuntimeError, match="after fsync"):
         store.append(event)
 
@@ -737,7 +737,7 @@ def test_migration_recovers_complete_destination_if_parent_fsync_fails(
         return original_fsync(fd)
 
     monkeypatch.setattr(segmented_module, "_rename_directory_noreplace", track_publish)
-    monkeypatch.setattr("mirage.telemetry.segmented.os.fsync", interrupt_parent_sync)
+    monkeypatch.setattr("mimclave.telemetry.segmented.os.fsync", interrupt_parent_sync)
     with pytest.raises(RuntimeError, match="after publish"):
         SegmentedEvidenceStore.migrate_legacy_log(
             source,
@@ -773,7 +773,7 @@ def test_initialization_recovers_after_manifest_fsync_before_segment_creation(
             raise RuntimeError("simulated process crash after manifest fsync")
 
     monkeypatch.setattr(
-        "mirage.telemetry.segmented.os.fsync", interrupt_manifest_fsync
+        "mimclave.telemetry.segmented.os.fsync", interrupt_manifest_fsync
     )
     with pytest.raises(RuntimeError, match="manifest fsync"):
         SegmentedEvidenceStore(

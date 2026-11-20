@@ -5,13 +5,13 @@ from uuid import uuid4
 
 import pytest
 
-from mirage.sandbox.ipc import WorkerEvent, encode_worker_event
-from mirage.sandbox.supervisor import (
+from mimclave.sandbox.ipc import WorkerEvent, encode_worker_event
+from mimclave.sandbox.supervisor import (
     SupervisorRegistrationError,
     register_worker_session,
 )
-from mirage.sandbox.worker_broker import UnixWorkerEventBroker
-from mirage.telemetry.store import JsonlEvidenceStore
+from mimclave.sandbox.worker_broker import UnixWorkerEventBroker
+from mimclave.telemetry.store import JsonlEvidenceStore
 
 
 def test_supervisor_registration_client_registers_exact_worker_identity(

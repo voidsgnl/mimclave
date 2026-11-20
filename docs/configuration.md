@@ -1,6 +1,6 @@
-# MIRAGE TOML Configuration
+# MIMCLAVE TOML Configuration
 
-MIRAGE configuration is versioned TOML. The loader is side-effect free: it parses configuration but does not bind ports, start decoys, change firewall rules, or forward traffic.
+MIMCLAVE configuration is versioned TOML. The loader is side-effect free: it parses configuration but does not bind ports, start decoys, change firewall rules, or forward traffic.
 
 ## Top-level structure
 
@@ -41,8 +41,8 @@ Each `[[protected_services]]` table requires a unique `id` and an `endpoint` inl
 After installing the project and development dependencies:
 
 ```bash
-mirage validate-config config/example.toml
-mirage discover
+mimclave validate-config config/example.toml
+mimclave discover
 ```
 
 Validation is offline and read-only. Exit code 0 means the configuration passed; 1 means policy validation issues; 2 means the file could not be parsed or structurally loaded.

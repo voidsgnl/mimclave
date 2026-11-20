@@ -1,6 +1,6 @@
 # Evidence Segments, Rotation, and Retention — M3 Design
 
-**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit, non-destructive legacy-log migration API are implemented in `src/mirage/telemetry/segmented.py`. Migration verifies and externally anchors the complete source head, rejects a source larger than the configured hard segment limit, copies original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and publishes it with Linux `renameat2(RENAME_NOREPLACE)` so an existing or racing destination is never replaced. Publication fails closed if atomic no-replace rename is unavailable. The source is never moved or deleted. GitHub Actions run #238 passed 130 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. Targeted crash tests now cover initialization, durable append acknowledgement, partial writes, rotation, retirement, and migration publication; exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
+**Status:** The legacy `JsonlEvidenceStore` remains unchanged; `SegmentedEvidenceStore` and an explicit, non-destructive legacy-log migration API are implemented in `src/mimclave/telemetry/segmented.py`. Migration verifies and externally anchors the complete source head, rejects a source larger than the configured hard segment limit, copies original record bytes unchanged into sealed segment 1, creates an empty active segment 2, verifies the staged store, and publishes it with Linux `renameat2(RENAME_NOREPLACE)` so an existing or racing destination is never replaced. Publication fails closed if atomic no-replace rename is unavailable. The source is never moved or deleted. GitHub Actions run #238 passed 130 tests, the evidence benchmark smoke test, and Ruff on Python 3.12–3.14. Targeted crash tests now cover initialization, durable append acknowledgement, partial writes, rotation, retirement, and migration publication; exhaustive filesystem-boundary coverage and target-hardware benchmarking remain outstanding.
 
 ## Problem
 
@@ -159,7 +159,7 @@ These resolve the questions raised in the first draft. They apply to the first i
 1. **Append verification scope.** Append always verifies the manifest chain and the active segment. Sealed segments are also verified on every append by default (`verify_sealed_on_append=True`), which preserves the current guarantee. Disabling it is an explicit configuration choice, to be made only after `scripts/benchmark_evidence_store.py` results on representative Linux storage show the cost matters. Retention also bounds how large the retained range can grow.
 2. **Anchor history.** Out of scope for the first implementation; the `CheckpointAnchor` contract and `HttpsCheckpointAnchor` stay unchanged. The compensating controls are the retirement preconditions (verified export with a recorded `export_sha256`, checkpoint verified against the full chain before deletion) and the operator duty to archive the manifest and exports off-host. A service-side append-only checkpoint history is recorded as future work for the checkpoint service contract.
 3. **Limits.** No size defaults are hard-coded. `max_segment_bytes` (and optionally `max_segment_records`) and `hard_max_segment_bytes` are required explicit configuration, and construction fails unless the hard limit is greater than the soft limit. Operational defaults are chosen only after benchmark measurements; tests use small values.
-4. **Event-ID reuse across retired segments.** Accepted limitation for the first implementation: idempotency and conflict detection cover retained segments only. This assumes event IDs are generated uniquely per event; confirm that in `mirage.telemetry.events` before implementing, and revisit (for example with a per-segment ID summary in the manifest) if IDs ever become caller-supplied.
+4. **Event-ID reuse across retired segments.** Accepted limitation for the first implementation: idempotency and conflict detection cover retained segments only. This assumes event IDs are generated uniquely per event; confirm that in `mimclave.telemetry.events` before implementing, and revisit (for example with a per-segment ID summary in the manifest) if IDs ever become caller-supplied.
 
 
 ## Initial implementation and usage
@@ -170,10 +170,10 @@ an injected external `CheckpointAnchor`; it does not silently substitute a
 local file or an in-memory anchor.
 
 ```python
-from mirage.telemetry.segmented import SegmentedEvidenceStore
+from mimclave.telemetry.segmented import SegmentedEvidenceStore
 
 store = SegmentedEvidenceStore(
-    "/var/lib/mirage/evidence",
+    "/var/lib/mimclave/evidence",
     max_segment_bytes=8 * 1024 * 1024,
     hard_max_segment_bytes=16 * 1024 * 1024,
     anchor=checkpoint_anchor,
@@ -212,21 +212,21 @@ token into the environment without putting it in shell history or command
 arguments:
 
 ```bash
-read -rsp "Checkpoint bearer token: " MIRAGE_CHECKPOINT_TOKEN
-export MIRAGE_CHECKPOINT_TOKEN
+read -rsp "Checkpoint bearer token: " MIMCLAVE_CHECKPOINT_TOKEN
+export MIMCLAVE_CHECKPOINT_TOKEN
 printf '\n'
 
-mirage migrate-evidence \
-  /var/lib/mirage/evidence.jsonl \
-  /var/lib/mirage/evidence-segmented \
-  --checkpoint-url https://anchor.example.net/v1/mirage/checkpoint \
+mimclave migrate-evidence \
+  /var/lib/mimclave/evidence.jsonl \
+  /var/lib/mimclave/evidence-segmented \
+  --checkpoint-url https://anchor.example.net/v1/mimclave/checkpoint \
   --max-segment-bytes 8388608 \
   --hard-max-segment-bytes 16777216
 
-unset MIRAGE_CHECKPOINT_TOKEN
+unset MIMCLAVE_CHECKPOINT_TOKEN
 ```
 
-The command reads the token from `MIRAGE_CHECKPOINT_TOKEN` by default (or
+The command reads the token from `MIMCLAVE_CHECKPOINT_TOKEN` by default (or
 another variable selected with `--token-env`). It never accepts the token as a
 command-line argument and does not print it. A real, independently hosted
 checkpoint service must be configured before running the migration.
@@ -236,11 +236,11 @@ checkpoint service must be configured before running the migration.
 The migration is an explicit, non-destructive operation. First configure an independent checkpoint anchor, then:
 
 ```python
-from mirage.telemetry.segmented import SegmentedEvidenceStore
+from mimclave.telemetry.segmented import SegmentedEvidenceStore
 
 store = SegmentedEvidenceStore.migrate_legacy_log(
-    "/var/lib/mirage/evidence.jsonl",
-    "/var/lib/mirage/evidence-segmented",
+    "/var/lib/mimclave/evidence.jsonl",
+    "/var/lib/mimclave/evidence-segmented",
     max_segment_bytes=8 * 1024 * 1024,
     hard_max_segment_bytes=16 * 1024 * 1024,
     anchor=checkpoint_anchor,

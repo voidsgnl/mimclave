@@ -2,7 +2,7 @@
 
 ## Scope
 
-M3 begins with a local, append-only JSON Lines evidence store for structured MIRAGE events. It is intended for development and controlled deployments on Linux. It is not yet a production evidence vault, remote collector, SIEM integration, or substitute for independent network enforcement.
+M3 begins with a local, append-only JSON Lines evidence store for structured MIMCLAVE events. It is intended for development and controlled deployments on Linux. It is not yet a production evidence vault, remote collector, SIEM integration, or substitute for independent network enforcement.
 
 ## Record format and integrity
 
@@ -46,7 +46,7 @@ The hash chain establishes one total append order for the file. Per-session sequ
 
 
 ## Implementation status
-The first implementation is in `src/mirage/telemetry/store.py` as `JsonlEvidenceStore`. It serializes only the existing `SessionEvent` fields, verifies the entire existing chain before each append, serializes appenders with `flock`, writes with append semantics, and calls `fsync` before returning an `EvidenceReceipt`. The HTTP transport can use `store.append` directly as its required event sink. The initial tests are in `tests/test_evidence_store.py` and `tests/test_http_transport.py`. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14.
+The first implementation is in `src/mimclave/telemetry/store.py` as `JsonlEvidenceStore`. It serializes only the existing `SessionEvent` fields, verifies the entire existing chain before each append, serializes appenders with `flock`, writes with append semantics, and calls `fsync` before returning an `EvidenceReceipt`. The HTTP transport can use `store.append` directly as its required event sink. The initial tests are in `tests/test_evidence_store.py` and `tests/test_http_transport.py`. CI run #116 passed 73 tests and Ruff on Python 3.12–3.14.
 
 
 ## Idempotency and retry semantics
@@ -63,7 +63,7 @@ This is idempotent append, not exactly-once delivery across arbitrary process/st
 
 ## External checkpoints
 
-The store exposes `publish_checkpoint(anchor)` and `verify_checkpoint(anchor)` using the contract in `mirage.telemetry.checkpoints`. A checkpoint commits to a monotonically increasing generation, record count, and chain head hash. Publication is serialized against appends with the evidence file lock and uses the anchor's atomic compare-and-set operation.
+The store exposes `publish_checkpoint(anchor)` and `verify_checkpoint(anchor)` using the contract in `mimclave.telemetry.checkpoints`. A checkpoint commits to a monotonically increasing generation, record count, and chain head hash. Publication is serialized against appends with the evidence file lock and uses the anchor's atomic compare-and-set operation.
 
 The anchor is an injected `CheckpointAnchor` implementation. Its durable state must be stored outside the evidence file's trust boundary (for example, a separately administered remote service or independently protected database). The repository currently defines the interface and tests it with an in-memory test double; it does not yet ship a production remote anchor implementation. CI run #135 passed 79 tests and Ruff on Python 3.12–3.14. A local sidecar file on the same host is not an independent anchor.
 
@@ -86,7 +86,7 @@ Run `python scripts/benchmark_evidence_store.py --events 1000 --segment-bytes 26
 
 ## HTTPS checkpoint client and remote service contract
 
-`mirage.telemetry.https_anchor.HttpsCheckpointAnchor` is the production-facing client adapter for an independently hosted checkpoint service. It accepts an exact HTTPS resource URL and a bearer token. It uses the platform's default certificate-verifying TLS context, refuses redirects, applies a request timeout, bounds response bodies to 4096 bytes, and never places credentials in the URL. The token should be loaded from a secret manager or protected environment at deployment; do not commit it, put it in TOML checked into source control, or log request headers.
+`mimclave.telemetry.https_anchor.HttpsCheckpointAnchor` is the production-facing client adapter for an independently hosted checkpoint service. It accepts an exact HTTPS resource URL and a bearer token. It uses the platform's default certificate-verifying TLS context, refuses redirects, applies a request timeout, bounds response bodies to 4096 bytes, and never places credentials in the URL. The token should be loaded from a secret manager or protected environment at deployment; do not commit it, put it in TOML checked into source control, or log request headers.
 
 The remote service must implement this conditional resource contract:
 
@@ -99,13 +99,13 @@ The remote service must implement this conditional resource contract:
 Example construction (the application must obtain the secret from its deployment secret manager):
 
 ```python
-from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
+from mimclave.telemetry.https_anchor import HttpsCheckpointAnchor
 
 anchor = HttpsCheckpointAnchor(
-    "https://evidence-anchor.example.net/v1/mirage/checkpoint",
-    bearer_token=load_secret("MIRAGE_CHECKPOINT_TOKEN"),
+    "https://evidence-anchor.example.net/v1/mimclave/checkpoint",
+    bearer_token=load_secret("MIMCLAVE_CHECKPOINT_TOKEN"),
 )
 store.publish_checkpoint(anchor)
 ```
 
-The repository includes both the `HttpsCheckpointAnchor` client and a SQLite-backed reference checkpoint service (`mirage-checkpoint-server`). The service uses conditional ETag writes, durable SQLite transactions, an append-only hash-chained checkpoint history, and a loopback-only listener; systemd and Caddy deployment examples are in `deploy/` and `docs/checkpoint-service.md`. GitHub Actions run #277 passed 146 tests and Ruff on Python 3.12–3.14. The service has not been deployed or independently audited. It becomes an independent anchor only when hosted on a separately administered machine whose storage, credentials, backups, and operator access are outside the evidence host's trust boundary. Do not run it on the evidence host and describe that as independent protection. A timeout after a remote commit is ambiguous; retrying `publish_checkpoint` is safe because it reads the committed checkpoint and returns it when the local head already matches.
+The repository includes both the `HttpsCheckpointAnchor` client and a SQLite-backed reference checkpoint service (`mimclave-checkpoint-server`). The service uses conditional ETag writes, durable SQLite transactions, an append-only hash-chained checkpoint history, and a loopback-only listener; systemd and Caddy deployment examples are in `deploy/` and `docs/checkpoint-service.md`. GitHub Actions run #277 passed 146 tests and Ruff on Python 3.12–3.14. The service has not been deployed or independently audited. It becomes an independent anchor only when hosted on a separately administered machine whose storage, credentials, backups, and operator access are outside the evidence host's trust boundary. Do not run it on the evidence host and describe that as independent protection. A timeout after a remote commit is ambiguous; retrying `publish_checkpoint` is safe because it reads the committed checkpoint and returns it when the local head already matches.

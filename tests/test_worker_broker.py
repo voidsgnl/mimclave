@@ -7,13 +7,13 @@ from uuid import uuid4
 
 import pytest
 
-from mirage.sandbox.ipc import WorkerEvent, encode_worker_event
-from mirage.sandbox.worker_broker import (
+from mimclave.sandbox.ipc import WorkerEvent, encode_worker_event
+from mimclave.sandbox.worker_broker import (
     UnixWorkerEventBroker,
     WorkerBrokerError,
     encode_supervisor_registration,
 )
-from mirage.telemetry.store import JsonlEvidenceStore
+from mimclave.telemetry.store import JsonlEvidenceStore
 
 
 def make_event(session_id: str, sequence: int = 1) -> WorkerEvent:
@@ -222,8 +222,8 @@ def test_ssh_worker_event_maps_only_normalized_command_name() -> None:
         command_name="whoami",
     )
     broker = UnixWorkerEventBroker(
-        Path("/tmp/mirage-test.sock"),
-        JsonlEvidenceStore(Path("/tmp/mirage-test-events.jsonl")),
+        Path("/tmp/mimclave-test.sock"),
+        JsonlEvidenceStore(Path("/tmp/mimclave-test-events.jsonl")),
         profile_id="ssh-decoy",
     )
     mapped = broker._to_session_event(

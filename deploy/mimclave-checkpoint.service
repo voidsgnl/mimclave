@@ -1,0 +1,33 @@
+[Unit]
+Description=MIMCLAVE independent evidence checkpoint service
+After=network.target
+
+[Service]
+Type=simple
+User=mimclave-checkpoint
+Group=mimclave-checkpoint
+EnvironmentFile=/etc/mimclave-checkpoint.env
+ExecStart=/usr/local/bin/mimclave-checkpoint-server
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/mimclave-checkpoint
+
+[Install]
+WantedBy=multi-user.target

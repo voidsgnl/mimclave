@@ -1,4 +1,4 @@
-# MIRAGE Requirements
+# MIMCLAVE Requirements
 
 ## Product objective
 
@@ -19,7 +19,7 @@ Provide a Linux-first platform that protects authorized infrastructure by exposi
 - **FR-008:** Provide configurable fake hostnames, users, credentials, files, processes, application data, and network topology.
 - **FR-009:** Keep each session internally consistent.
 - **FR-010:** Provide deterministic simulated command environments that record commands and arguments submitted inside the decoy.
-- **FR-011:** Do not imply that MIRAGE can observe arbitrary commands executed locally on a remote attacker's own device.
+- **FR-011:** Do not imply that MIMCLAVE can observe arbitrary commands executed locally on a remote attacker's own device.
 
 ### Isolation and containment
 - **FR-012:** Keep protected services inaccessible from decoy network namespaces and workloads.
@@ -29,7 +29,7 @@ Provide a Linux-first platform that protects authorized infrastructure by exposi
 - **FR-016:** Provide disposable execution environments only after independent isolation and escape testing.
 
 ### Telemetry, evidence, and intelligence
-- **FR-017:** Record session timestamps, source network metadata, protocol events, commands entered into MIRAGE, responses returned, and containment events.
+- **FR-017:** Record session timestamps, source network metadata, protocol events, commands entered into MIMCLAVE, responses returned, and containment events.
 - **FR-018:** Preserve event ordering and session correlation identifiers.
 - **FR-019:** Protect evidence integrity and record provenance.
 - **FR-020:** Correlate repeated infrastructure and behavioural indicators with explainable confidence levels.
@@ -45,7 +45,7 @@ Provide a Linux-first platform that protects authorized infrastructure by exposi
 
 - **NFR-001:** Linux is the initial supported host platform.
 - **NFR-002:** The first milestone is read-only; no firewall changes or traffic redirection.
-- **NFR-003:** Network enforcement must remain effective if the MIRAGE application crashes.
+- **NFR-003:** Network enforcement must remain effective if the MIMCLAVE application crashes.
 - **NFR-004:** Default-deny network and filesystem access for decoy workloads.
 - **NFR-005:** Secrets must not be committed or written to ordinary logs.
 - **NFR-006:** Tests must cover protocol compatibility, invalid mappings, fail-closed behaviour, and isolation boundaries.
@@ -78,7 +78,7 @@ Milestone 1: project skeleton, typed configuration models, protocol-port compati
 ## Additional non-functional and security requirements
 
 - **NFR-008:** Monitoring and steering decisions must meet measured latency and throughput targets; targets must be established through load testing before production claims.
-- **NFR-009:** The enforcement plane must fail closed and must not fall through to protected services when MIRAGE, policy, telemetry, or a decoy becomes unhealthy.
+- **NFR-009:** The enforcement plane must fail closed and must not fall through to protected services when MIMCLAVE, policy, telemetry, or a decoy becomes unhealthy.
 - **NFR-010:** Detection and response must be independently configurable; weak or ambiguous signals must not automatically disrupt legitimate traffic.
 - **NFR-011:** Sandboxes must default-deny egress, have no production credentials or unrestricted host mounts, and enforce CPU, memory, process, disk, and session limits.
 - **NFR-012:** The system daemon must start at boot and remain functional without a graphical session.

@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from mirage.config.loader import ConfigLoadError, load_config
-from mirage.config.registry import ProfileRegistry
+from mimclave.config.loader import ConfigLoadError, load_config
+from mimclave.config.registry import ProfileRegistry
 
 VALID_CONFIG = """
 version = 1
@@ -28,7 +28,7 @@ endpoint = { host = "127.0.0.1", port = 9000, transport = "tcp" }
 
 
 def write_config(tmp_path: Path, content: str) -> Path:
-    path = tmp_path / "mirage.toml"
+    path = tmp_path / "mimclave.toml"
     path.write_text(content, encoding="utf-8")
     return path
 

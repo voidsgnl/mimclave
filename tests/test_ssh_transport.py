@@ -6,12 +6,12 @@ import os
 import asyncssh
 import pytest
 
-from mirage.telemetry.events import SessionEventFactory
-from mirage.transport.ssh_server import SSHDecoyServer, _VirtualTerminalSession
+from mimclave.telemetry.events import SessionEventFactory
+from mimclave.transport.ssh_server import SSHDecoyServer, _VirtualTerminalSession
 
 
 def _host_key(tmp_path):
-    path = tmp_path / "mirage-test-host-key"
+    path = tmp_path / "mimclave-test-host-key"
     key = asyncssh.generate_private_key("ssh-ed25519")
     path.write_bytes(key.export_private_key())
     os.chmod(path, 0o600)

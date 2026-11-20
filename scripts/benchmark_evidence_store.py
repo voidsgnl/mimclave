@@ -16,13 +16,13 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from mirage.telemetry.checkpoints import (
+from mimclave.telemetry.checkpoints import (
     CheckpointConflictError,
     EvidenceCheckpoint,
 )
-from mirage.telemetry.events import SessionEventFactory
-from mirage.telemetry.segmented import SegmentedEvidenceStore
-from mirage.telemetry.store import JsonlEvidenceStore
+from mimclave.telemetry.events import SessionEventFactory
+from mimclave.telemetry.segmented import SegmentedEvidenceStore
+from mimclave.telemetry.store import JsonlEvidenceStore
 
 
 class _MemoryAnchor:
@@ -147,7 +147,7 @@ def benchmark(event_count: int, segment_bytes: int) -> None:
         raise ValueError("segment size must be at least 1024 bytes")
 
     events = _events(event_count)
-    with tempfile.TemporaryDirectory(prefix="mirage-evidence-bench-") as directory:
+    with tempfile.TemporaryDirectory(prefix="mimclave-evidence-bench-") as directory:
         root = Path(directory)
         legacy = _benchmark_legacy(root / "legacy", events)
         segmented = _benchmark_segmented(root, events, segment_bytes)

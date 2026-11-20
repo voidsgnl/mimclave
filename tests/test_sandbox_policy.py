@@ -1,6 +1,6 @@
 import pytest
 
-from mirage.sandbox.policy import (
+from mimclave.sandbox.policy import (
     NetworkMode,
     SandboxLimits,
     SandboxPolicy,
@@ -46,7 +46,7 @@ def test_isolated_worker_requires_complete_security_controls() -> None:
         policy_id="ssh-worker",
         tier=SandboxTier.ISOLATED_WORKER,
         namespaces=("user", "mount", "pid", "ipc", "uts", "net"),
-        seccomp_profile="mirage-worker-v1",
+        seccomp_profile="mimclave-worker-v1",
         network_mode=NetworkMode.ESTABLISHED_CLIENT_STREAM,
     )
     assert validate_sandbox_policy(policy) == []

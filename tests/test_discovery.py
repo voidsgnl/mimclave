@@ -1,4 +1,4 @@
-from mirage.discovery.ports import parse_proc_net_table
+from mimclave.discovery.ports import parse_proc_net_table
 
 TCP_FIXTURE = """  sl  local_address rem_address   st
    0: 0100007F:1F90 00000000:0000 0A

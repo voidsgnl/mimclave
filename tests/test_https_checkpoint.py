@@ -6,12 +6,12 @@ from email.message import Message
 
 import pytest
 
-from mirage.telemetry.checkpoints import (
+from mimclave.telemetry.checkpoints import (
     CheckpointConflictError,
     CheckpointError,
     EvidenceCheckpoint,
 )
-from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
+from mimclave.telemetry.https_anchor import HttpsCheckpointAnchor
 
 
 class FakeResponse:
@@ -62,7 +62,7 @@ def test_https_anchor_reads_checkpoint_and_requires_strong_etag(monkeypatch) -> 
                       b"a" * 64 + b'"}', {"ETag": '"v1"'})]
     )
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(
@@ -96,7 +96,7 @@ def test_https_anchor_uses_conditional_create_and_update(monkeypatch) -> None:
         ]
     )
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(
@@ -117,7 +117,7 @@ def test_https_anchor_uses_conditional_create_and_update(monkeypatch) -> None:
 def test_https_anchor_maps_precondition_failure_to_conflict(monkeypatch) -> None:
     opener = FakeOpener([http_error(404), http_error(412)])
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(
@@ -144,7 +144,7 @@ def test_https_anchor_rejects_weak_etag_and_invalid_checkpoint(monkeypatch) -> N
         ]
     )
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(
@@ -172,7 +172,7 @@ def test_https_anchor_rejects_unsafe_endpoint(endpoint: str) -> None:
 def test_https_anchor_rejects_redirects(monkeypatch) -> None:
     opener = FakeOpener([http_error(307)])
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(
@@ -189,7 +189,7 @@ def test_https_anchor_rejects_oversized_service_response(monkeypatch) -> None:
         [FakeResponse(200, b"x" * 4097, {"ETag": '"v1"'})]
     )
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(
@@ -204,7 +204,7 @@ def test_https_anchor_rejects_duplicate_checkpoint_json_keys(monkeypatch) -> Non
     body = b'{"generation":1,"generation":2,"record_count":1,"head_hash":"' + b"a" * 64 + b'"}'
     opener = FakeOpener([FakeResponse(200, body, {"ETag": '"v1"'})])
     monkeypatch.setattr(
-        "mirage.telemetry.https_anchor.urllib.request.build_opener",
+        "mimclave.telemetry.https_anchor.urllib.request.build_opener",
         lambda *handlers: opener,
     )
     anchor = HttpsCheckpointAnchor(

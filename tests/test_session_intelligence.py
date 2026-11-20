@@ -1,13 +1,13 @@
-"""Tests for evidence-backed MIRAGE activity analysis."""
+"""Tests for evidence-backed MIMCLAVE activity analysis."""
 
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from mirage import cli
-from mirage.telemetry.events import SessionEventFactory
-from mirage.telemetry.intelligence import build_activity_report
-from mirage.telemetry.store import EvidenceIntegrityError, JsonlEvidenceStore
+from mimclave import cli
+from mimclave.telemetry.events import SessionEventFactory
+from mimclave.telemetry.intelligence import build_activity_report
+from mimclave.telemetry.store import EvidenceIntegrityError, JsonlEvidenceStore
 
 
 BASE = datetime(2026, 11, 20, 10, 0, tzinfo=UTC)
