@@ -29,6 +29,16 @@ _VIRTUAL_FILES = {
         "deploy:x:1001:1001:Deployment User:/home/deploy:/bin/bash\n"
         "backup:x:1002:1002:Backup User:/home/backup:/bin/bash\n"
     ),
+    "/etc/shadow": (
+        "root:$6$decoy-root-hash:20420:0:99999:7:::\n"
+        "www-data:!:20420:0:99999:7:::\n"
+        "deploy:$6$decoy-deploy-hash:20420:0:99999:7:::\n"
+    ),
+    "/etc/gshadow": (
+        "root:*:::\n"
+        "shadow:*:::\n"
+    ),
+    "/root/.bash_history": "sudo -l\ncat /etc/shadow\n",
     "/etc/issue": "Ubuntu 22.04.4 LTS \\n \\l\n",
     "/var/www/html/index.html": (
         "<html><head><title>Intranet Portal</title></head>"
@@ -57,8 +67,9 @@ _VIRTUAL_FILES = {
 }
 
 _DIRECTORIES = {
-    "/": ("etc", "home", "var"),
-    "/etc": ("hostname", "issue", "os-release", "passwd"),
+    "/": ("etc", "home", "root", "var"),
+    "/etc": ("hostname", "issue", "os-release", "passwd", "shadow", "gshadow"),
+    "/root": (".bash_history",),
     "/home": ("backup", "deploy"),
     "/home/backup": (),
     "/home/deploy": ("README.txt",),
@@ -68,6 +79,15 @@ _DIRECTORIES = {
     "/var/www": ("html",),
     "/var/www/html": ("config.php", "index.html"),
 }
+
+# These paths exist in the simulated machine but are restricted to root.
+# Keep this policy explicit: no host permission checks or filesystem calls occur.
+_ROOT_ONLY_PATHS = frozenset({"/root", "/etc/shadow", "/etc/gshadow"})
+
+
+def _permission_denied(path: str) -> bool:
+    return path == "/root" or path.startswith("/root/") or path in _ROOT_ONLY_PATHS
+
 
 _PROCESS_TABLE = (
     "USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n"
@@ -167,6 +187,10 @@ class VirtualTerminal:
             return self.cwd
 
         resolved = self._resolve(target)
+        if resolved is None:
+            return f"cd: {target}: No such file or directory"
+        if _permission_denied(resolved):
+            return f"cd: {target}: Permission denied"
         if resolved not in _DIRECTORIES:
             return f"cd: {target}: No such file or directory"
         if resolved != self.cwd:
@@ -182,22 +206,45 @@ class VirtualTerminal:
         if len(paths) > 1:
             return "ls: one path at a time"
         target = self._resolve(paths[0]) if paths else self.cwd
-        if target is None or target not in _DIRECTORIES:
+        if target is None:
+            return "ls: cannot access: No such file or directory"
+        if _permission_denied(target):
+            return f"ls: cannot open directory '{target}': Permission denied"
+        if target not in _DIRECTORIES:
             return "ls: cannot access: No such file or directory"
         names = _DIRECTORIES[target]
         if "-l" in options or "-la" in options or "-al" in options:
-            return "\n".join(
-                f"drwxr-xr-x 2 root root 4096 Nov 20 16:00 {name}"
-                if posixpath.join(target, name) in _DIRECTORIES
-                else f"-rw-r--r-- 1 root root  128 Nov 20 16:00 {name}"
-                for name in names
-            )
+            rows = []
+            for name in names:
+                entry = posixpath.join(target, name)
+                if entry in _DIRECTORIES:
+                    rows.append(
+                        f"drwxr-xr-x 2 root root 4096 Nov 20 16:00 {name}"
+                    )
+                elif entry in ("/etc/shadow", "/etc/gshadow"):
+                    rows.append(
+                        f"-rw-r----- 1 root shadow  256 Nov 20 16:00 {name}"
+                    )
+                elif entry == "/root/.bash_history":
+                    rows.append(
+                        f"-rw------- 1 root root  128 Nov 20 16:00 {name}"
+                    )
+                else:
+                    rows.append(
+                        f"-rw-r--r-- 1 root root  128 Nov 20 16:00 {name}"
+                    )
+            return "\n".join(rows)
         return "  ".join(names)
 
     def _read_files(self, args: list[str]) -> str:
         if len(args) != 1:
             return "cat: expected exactly one virtual file path"
         target = self._resolve(args[0])
-        if target is None or target not in _VIRTUAL_FILES:
+        if target is None:
+            return f"cat: {args[0]}: No such file or directory"
+        # Check restricted parent directories as well as the target itself.
+        if _permission_denied(target):
+            return f"cat: {args[0]}: Permission denied"
+        if target not in _VIRTUAL_FILES:
             return f"cat: {args[0]}: No such file or directory"
         return _VIRTUAL_FILES[target].rstrip("\n")
