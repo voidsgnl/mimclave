@@ -16,6 +16,7 @@ def test_virtual_filesystem_contains_only_fabricated_files() -> None:
     assert "www-data" in passwd
     assert "deploy" in passwd
     assert "root:" in passwd
+    assert "REDACTED-DECOY-VALUE" in terminal.execute("cat /var/www/html/config.php")
 
 
 def test_virtual_directory_navigation_is_instance_local() -> None:
@@ -72,7 +73,6 @@ def test_help_and_clear_are_local_terminal_operations() -> None:
     terminal = VirtualTerminal()
     assert "Available commands" in terminal.execute("help")
     assert terminal.execute("clear") == ""
-
 
 
 def test_simulate_terminal_cli_exits_cleanly(monkeypatch, capsys) -> None:
