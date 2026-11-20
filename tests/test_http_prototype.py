@@ -46,8 +46,8 @@ def test_local_http_prototype_serves_and_records_request(tmp_path) -> None:
         try:
             reader, writer = await asyncio.open_connection(*server.address)
             writer.write(
-                b"GET /?token=must-not-be-recorded HTTP/1.1\\r\\n"
-                b"Host: attacker.example.test\\r\\n\\r\\n"
+                b"GET /?token=must-not-be-recorded HTTP/1.1\r\n"
+                b"Host: attacker.example.test\r\n\r\n"
             )
             await writer.drain()
             response = await reader.read()
@@ -81,7 +81,9 @@ def test_local_http_prototype_rejects_non_loopback_host(tmp_path) -> None:
 
 
 def test_local_http_prototype_rejects_https_profile(tmp_path) -> None:
-    https_config = HTTP_CONFIG.replace('protocol = "http"', 'protocol = "https"').replace('port = 8080', 'port = 443')
+    https_config = HTTP_CONFIG.replace(
+        'protocol = "http"', 'protocol = "https"'
+    ).replace('port = 8080', 'port = 443')
     with pytest.raises(ValueError, match="HTTP profiles only"):
         _create_http_server(
             _write_config(tmp_path, https_config),
@@ -93,7 +95,9 @@ def test_local_http_prototype_rejects_https_profile(tmp_path) -> None:
 
 
 def test_local_http_prototype_rejects_unmapped_profile(tmp_path) -> None:
-    config = HTTP_CONFIG.replace('profile_id = "local-web"', 'profile_id = "other-profile"')
+    config = HTTP_CONFIG.replace(
+        'profile_id = "local-web"', 'profile_id = "other-profile"'
+    )
     with pytest.raises(ValueError, match="unknown decoy profile"):
         _create_http_server(
             _write_config(tmp_path, config),
