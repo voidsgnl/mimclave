@@ -84,7 +84,7 @@ class WorkerEvent:
             raise WorkerMessageError("event_type has an invalid format")
         if not isinstance(self.profile_id, str) or not _IDENTIFIER.fullmatch(self.profile_id):
             raise WorkerMessageError("profile_id has an invalid format")
-        if self.protocol not in _PROTOCOLS:
+        if not isinstance(self.protocol, str) or self.protocol not in _PROTOCOLS:
             raise WorkerMessageError("protocol must be http, https, or ssh")
 
         if not isinstance(self.timestamp, str):
@@ -155,6 +155,10 @@ def encode_worker_event(event: WorkerEvent) -> bytes:
     return payload
 
 
+def _reject_json_constant(value: str) -> None:
+    raise WorkerMessageError(f"invalid JSON constant: {value}")
+
+
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
@@ -179,9 +183,7 @@ def decode_worker_event(frame: bytes) -> WorkerEvent:
         decoded = json.loads(
             payload,
             object_pairs_hook=_unique_object,
-            parse_constant=lambda value: (_ for _ in ()).throw(
-                WorkerMessageError(f"invalid JSON constant: {value}")
-            ),
+            parse_constant=_reject_json_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkerMessageError("worker frame is not valid UTF-8 JSON") from exc
@@ -195,7 +197,8 @@ def decode_worker_event(frame: bytes) -> WorkerEvent:
     if missing:
         raise WorkerMessageError(f"worker event is missing fields: {', '.join(sorted(missing))}")
     if unknown:
-        raise WorkerMessageError(f"worker event contains unsupported fields: {', '.join(sorted(unknown))}")
+        fields = ", ".join(sorted(unknown))
+        raise WorkerMessageError(f"worker event contains unsupported fields: {fields}")
 
     try:
         return WorkerEvent(**decoded)
