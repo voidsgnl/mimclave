@@ -8,7 +8,7 @@ MIRAGE is a Linux-first defensive platform designed to place controlled deceptio
 
 ## Project status
 
-M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the M3 evidence pipeline are implemented. The first runnable local prototype now includes `mirage serve-http`: it starts a configured HTTP decoy on a loopback address, records each served request to the hash-chained JSONL evidence store before sending the response, and can verify that evidence with `mirage verify-evidence`. This is a local end-to-end demonstration, not production interception. The existing transports remain loopback-only; HTTPS requires an explicitly provisioned TLS context. M3 also includes segmented evidence storage, checkpoint-anchored rotation, verified export, non-destructive migration, an HTTPS checkpoint client, and a SQLite-backed checkpoint service. The checkpoint service has not been deployed or independently audited. Production traffic interception, isolated sandbox execution, and a management dashboard are not implemented. Do not deploy MIRAGE in front of production services.
+M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the M3 evidence pipeline are implemented. The runnable local prototype includes `mirage serve-http` and an experimental `mirage serve-ssh` adapter for the in-memory terminal. Both are restricted to loopback and record interactions to hash-chained JSONL evidence before returning simulated output. SSH support is optional and is not production-ready. The existing transports remain loopback-only; HTTPS requires an explicitly provisioned TLS context. M3 also includes segmented evidence storage, checkpoint-anchored rotation, verified export, non-destructive migration, an HTTPS checkpoint client, and a SQLite-backed checkpoint service. The checkpoint service has not been deployed or independently audited. Production traffic interception, isolated sandbox execution, and a management dashboard are not implemented. Do not deploy MIRAGE in front of production services.
 
 ## Core principles
 
@@ -31,7 +31,7 @@ M1 configuration and read-only discovery, M2 safe HTTP/HTTPS simulation, and the
 8. Threat intelligence correlation and cautious attribution analysis.
 9. Management API and operator dashboard.
 
-See [Roadmap & Handoff](ROADMAP.md), [Architecture](docs/architecture.md), [Requirements](docs/requirements.md), [Configuration](docs/configuration.md), and [Threat Model](docs/threat-model.md).
+See [Roadmap & Handoff](ROADMAP.md), [Architecture](docs/architecture.md), [Requirements](docs/requirements.md), [Configuration](docs/configuration.md), [Threat Model](docs/threat-model.md), and [SSH Decoy](docs/ssh-decoy.md).
 
 ## Development
 
@@ -70,7 +70,58 @@ Run the isolated, in-memory Linux-like command interpreter:
 
 Try `help`, `whoami`, `hostname`, `pwd`, `ls`, `cd /home/deploy`, `cat README.txt`, `cat /etc/passwd`, or `ps aux`. Type `exit` to leave. The files, users, processes, and host identity are fabricated examples.
 
-**This is not a real shell.** Only a small allowlist of read-only commands exists. MIRAGE does not call a shell or subprocess, access the host filesystem, or make network connections. Pipes, redirects, command chaining, expansions, and path traversal are rejected. Unknown commands are not executed. This is a local simulator for validating the decoy environment; a network-facing interactive protocol adapter and per-remote-session evidence recording are not implemented yet.
+**This is not a real shell.** Only a small allowlist of read-only commands exists. MIRAGE does not call a shell or subprocess, access the host filesystem, or make network connections. Pipes, redirects, command chaining, expansions, and path traversal are rejected. Unknown commands are not executed. This local interpreter is also available through the experimental loopback-only SSH adapter described below.
+
+
+### Try the experimental SSH decoy
+
+Install the optional SSH dependency:
+
+```bash
+python -m pip install -e '.[ssh]'
+```
+
+Create a dedicated host key (do not reuse your personal or system SSH keys):
+
+```bash
+install -d -m 700 var/mirage/keys
+ssh-keygen -t ed25519 -N '' -f var/mirage/keys/mirage_test_host_ed25519
+chmod 600 var/mirage/keys/mirage_test_host_ed25519
+```
+
+Start the SSH decoy. It binds only to loopback:
+
+```bash
+./.venv/bin/mirage serve-ssh \
+  --host 127.0.0.1 \
+  --port 2222 \
+  --host-key var/mirage/keys/mirage_test_host_ed25519 \
+  --evidence var/mirage/ssh-events.jsonl
+```
+
+Connect from another terminal:
+
+```bash
+ssh -p 2222 \
+  -o UserKnownHostsFile=var/mirage/ssh_known_hosts \
+  -o StrictHostKeyChecking=accept-new \
+  visitor@127.0.0.1
+```
+
+Try `whoami`, `pwd`, `ls`, `cat /etc/passwd`, and `cd /home/deploy`.
+Verify interactions after stopping the server:
+
+```bash
+./.venv/bin/mirage verify-evidence var/mirage/ssh-events.jsonl
+./.venv/bin/mirage inspect-sessions var/mirage/ssh-events.jsonl
+```
+
+The SSH adapter accepts sessions without client authentication, never stores
+passwords or full command lines, and runs commands only in the fabricated
+interpreter. Port forwarding, SFTP, agent forwarding, and X11 are disabled.
+It is an experimental local prototype, not an isolated sandbox or a public
+honeypot. **Do not expose it beyond loopback.** See [SSH Decoy](docs/ssh-decoy.md)
+for its limits and security boundaries.
 
 ### Inspect recorded activity
 
