@@ -29,6 +29,34 @@ def make_event(session_id: str, sequence: int = 1) -> WorkerEvent:
     )
 
 
+async def register_session(
+    socket_path: Path,
+    session_id: str,
+    *,
+    protocol: str = "http",
+    worker_uid: int | None = None,
+) -> None:
+    """Register trusted client metadata for the current test worker process."""
+    reader, writer = await asyncio.open_unix_connection(
+        socket_path.with_name(socket_path.name + ".control")
+    )
+    message = {
+        "action": "register",
+        "session_id": session_id,
+        "protocol": protocol,
+        "source_ip": "198.51.100.44",
+        "source_port": 45678,
+        "worker_uid": os.geteuid() if worker_uid is None else worker_uid,
+        "worker_pid": os.getpid(),
+    }
+    writer.write(json.dumps(message).encode("utf-8") + b"\n")
+    await writer.drain()
+    response = json.loads(await reader.readline())
+    writer.close()
+    await writer.wait_closed()
+    assert response["registered"] is True
+
+
 def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> None:
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
