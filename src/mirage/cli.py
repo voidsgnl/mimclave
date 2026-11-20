@@ -14,6 +14,7 @@ from mirage.config.models import Protocol
 from mirage.config.registry import ProfileRegistry
 from mirage.discovery.ports import discover_proc_listeners
 from mirage.emulation.http import HttpDecoy
+from mirage.emulation.terminal import VirtualTerminal
 from mirage.telemetry.checkpoints import CheckpointError
 from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
 from mirage.telemetry.intelligence import build_activity_report, render_activity_report
@@ -42,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="seconds of inactivity before a new activity cluster (default: 1800)",
     )
     inspect.add_argument("--json", action="store_true", help="emit the report as JSON")
+    terminal = subparsers.add_parser(
+        "simulate-terminal", help="open a safe, in-memory Linux-like decoy terminal"
+    )
+    terminal.add_argument("--hostname", default="intranet.example.test")
+    terminal.add_argument("--username", default="www-data")
     serve = subparsers.add_parser(
         "serve-http", help="run a loopback-only HTTP decoy and record interactions"
     )
@@ -196,6 +202,25 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2))
         else:
             print(render_activity_report(report))
+        return 0
+
+    if args.command == "simulate-terminal":
+        terminal = VirtualTerminal(hostname=args.hostname, username=args.username)
+        print("MIRAGE virtual terminal — simulated data only; no host commands execute.")
+        print("Type help for commands, or exit to leave.")
+        try:
+            while True:
+                try:
+                    line = input(f"{terminal.username}@{terminal.hostname}:{terminal.cwd}$ ")
+                except EOFError:
+                    break
+                if line.strip() in {"exit", "logout"}:
+                    break
+                output = terminal.execute(line)
+                if output:
+                    print(output)
+        except KeyboardInterrupt:
+            print()
         return 0
 
     if args.command == "serve-http":
