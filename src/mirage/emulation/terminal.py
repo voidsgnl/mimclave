@@ -217,7 +217,11 @@ class VirtualTerminal:
             rows = []
             for name in names:
                 entry = posixpath.join(target, name)
-                if entry in _DIRECTORIES:
+                if entry == "/root":
+                    rows.append(
+                        f"drwx------ 2 root root 4096 Nov 20 16:00 {name}"
+                    )
+                elif entry in _DIRECTORIES:
                     rows.append(
                         f"drwxr-xr-x 2 root root 4096 Nov 20 16:00 {name}"
                     )
