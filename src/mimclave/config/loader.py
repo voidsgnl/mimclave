@@ -8,7 +8,13 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from mimclave.config.models import DecoyProfile, Endpoint, ListenerMapping, ProtectedService, Protocol
+from mimclave.config.models import (
+    DecoyProfile,
+    Endpoint,
+    ListenerMapping,
+    ProtectedService,
+    Protocol,
+)
 
 
 class ConfigLoadError(ValueError):
