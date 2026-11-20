@@ -29,6 +29,22 @@ _SSH_BASE = asyncssh.SSHServer if asyncssh is not None else object
 class _NoAuthSSHServer(_SSH_BASE):  # type: ignore[misc,valid-type]
     """Accept a connection without asking for credentials; deny all forwarding."""
 
+    def __init__(self, owner: "SSHDecoyServer") -> None:
+        self._owner = owner
+        self._connection = None
+
+    def connection_made(self, connection: object) -> None:
+        self._connection = connection
+        if len(self._owner._connections) >= self._owner.max_connections:
+            connection.close()  # type: ignore[attr-defined]
+            return
+        self._owner._connections.add(connection)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        del exc
+        if self._connection is not None:
+            self._owner._connections.discard(self._connection)
+
     def begin_auth(self, username: str) -> bool:
         del username
         return False
@@ -62,6 +78,7 @@ class SSHDecoyServer:
         host: str = "127.0.0.1",
         port: int = 2222,
         max_sessions: int = 8,
+        max_connections: int = 16,
         idle_timeout: float = COMMAND_IDLE_TIMEOUT,
     ) -> None:
         if asyncssh is None:
@@ -78,6 +95,8 @@ class SSHDecoyServer:
             raise ValueError("port must be between 0 and 65535")
         if max_sessions < 1:
             raise ValueError("max_sessions must be positive")
+        if max_connections < 1:
+            raise ValueError("max_connections must be positive")
         if idle_timeout <= 0:
             raise ValueError("idle_timeout must be positive")
         if not profile_id.strip():
@@ -99,9 +118,11 @@ class SSHDecoyServer:
         self.host = str(address)
         self.port = port
         self.max_sessions = max_sessions
+        self.max_connections = max_connections
         self.idle_timeout = idle_timeout
         self._server: object | None = None
         self._active_sessions = 0
+        self._connections: set[object] = set()
 
     @property
     def address(self) -> tuple[str, int]:
@@ -120,7 +141,7 @@ class SSHDecoyServer:
             raise RuntimeError("SSH decoy server is already started")
         assert asyncssh is not None
         self._server = await asyncssh.create_server(
-            lambda: _NoAuthSSHServer(),
+            lambda: _NoAuthSSHServer(self),
             host=self.host,
             port=self.port,
             server_host_keys=[str(self.host_key)],
@@ -130,6 +151,7 @@ class SSHDecoyServer:
             agent_forwarding=False,
             x11_forwarding=False,
             login_timeout=10,
+            backlog=self.max_connections,
             window=4096,
             max_pktsize=1024,
             encoding="utf-8",
@@ -142,6 +164,14 @@ class SSHDecoyServer:
         server, self._server = self._server, None
         server.close()  # type: ignore[attr-defined]
         await server.wait_closed()  # type: ignore[attr-defined]
+        connections = tuple(self._connections)
+        for connection in connections:
+            connection.close()  # type: ignore[attr-defined]
+        if connections:
+            await asyncio.gather(
+                *(connection.wait_closed() for connection in connections),  # type: ignore[attr-defined]
+                return_exceptions=True,
+            )
 
     async def _read_command(self, process: object) -> str | None:
         """Read one bounded command without buffering an unlimited input line."""
@@ -243,6 +273,8 @@ class SSHDecoyServer:
                     return
                 if command is None:
                     break
+                if not command.strip():
+                    continue
                 if command.strip() in {"exit", "logout"}:
                     break
                 output = await self._record_and_execute(process, terminal, factory, command)
