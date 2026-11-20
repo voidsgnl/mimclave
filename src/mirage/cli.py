@@ -158,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             asyncio.run(_serve_http(args))
         except KeyboardInterrupt:
-            print("\\nMIRAGE HTTP decoy stopped.", flush=True)
+            print("\nMIRAGE HTTP decoy stopped.", flush=True)
             return 130
         except (ConfigLoadError, EvidenceStoreError, OSError, ValueError, RuntimeError) as exc:
             print(f"HTTP decoy failed: {exc}", file=sys.stderr)
