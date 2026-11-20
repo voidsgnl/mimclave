@@ -161,7 +161,7 @@ class VirtualTerminal:
     def _change_directory(self, args: list[str]) -> str:
         if len(args) > 1:
             return "cd: expected at most one path"
-        target = args[0] if args else "/home/www-data"
+        target = args[0] if args else "/var/www"
         resolved = self._resolve(target)
         if resolved not in _DIRECTORIES:
             return f"cd: {target}: No such file or directory"
