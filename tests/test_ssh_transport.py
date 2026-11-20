@@ -110,13 +110,13 @@ def test_ssh_interactive_sessions_have_separate_virtual_directories(tmp_path) ->
             first.connection_made(first_channel)
             first.shell_requested()
             first.session_started()
-            first.data_received("cd /home/deploy\\n", None)
-            first.data_received("pwd\\n", None)
+            first.data_received("cd /home/deploy\n", None)
+            first.data_received("pwd\n", None)
 
             second.connection_made(second_channel)
             second.shell_requested()
             second.session_started()
-            second.data_received("pwd\\n", None)
+            second.data_received("pwd\n", None)
 
             first_output = "".join(first_channel.output)
             second_output = "".join(second_channel.output)
