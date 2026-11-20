@@ -43,6 +43,49 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return result
 
 
+def encode_supervisor_registration(
+    *,
+    session_id: str,
+    protocol: str,
+    source_ip: str,
+    source_port: int,
+    worker_uid: int,
+    worker_pid: int,
+) -> bytes:
+    """Encode one trusted supervisor registration for the private control socket."""
+    try:
+        if str(UUID(session_id)) != session_id.lower():
+            raise ValueError
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("session_id must be a canonical UUID") from exc
+    if protocol not in {"http", "https", "ssh"}:
+        raise ValueError("protocol must be http, https, or ssh")
+    normalized_ip = str(ip_address(source_ip))
+    if isinstance(source_port, bool) or not isinstance(source_port, int) or not 1 <= source_port <= 65535:
+        raise ValueError("source_port must be between 1 and 65535")
+    if isinstance(worker_uid, bool) or not isinstance(worker_uid, int) or worker_uid < 0:
+        raise ValueError("worker_uid must be a non-negative integer")
+    if isinstance(worker_pid, bool) or not isinstance(worker_pid, int) or worker_pid < 1:
+        raise ValueError("worker_pid must be a positive integer")
+    frame = json.dumps(
+        {
+            "action": "register",
+            "session_id": session_id,
+            "protocol": protocol,
+            "source_ip": normalized_ip,
+            "source_port": source_port,
+            "worker_uid": worker_uid,
+            "worker_pid": worker_pid,
+        },
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8") + b"\n"
+    if len(frame) > MAX_SUPERVISOR_MESSAGE_BYTES:
+        raise ValueError("supervisor registration exceeds the message size limit")
+    return frame
+
+
 class WorkerBrokerError(RuntimeError):
     """The worker event broker could not safely start or process a message."""
 
