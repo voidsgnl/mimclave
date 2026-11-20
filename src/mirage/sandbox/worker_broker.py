@@ -488,6 +488,7 @@ class UnixWorkerEventBroker:
         if task is not None:
             self._client_tasks.add(task)
         session_id: str | None = None
+        claimed_registration = False
         try:
             if self._active_clients > self.max_clients:
                 raise WorkerBrokerError("maximum worker connections reached")
@@ -542,6 +543,7 @@ class UnixWorkerEventBroker:
                         if registration.get("claimed", False):
                             raise WorkerMessageError("worker session is already claimed")
                         registration["claimed"] = True
+                        claimed_registration = True
                     self._sequence_guard.validate(event)
                     await asyncio.to_thread(self.evidence_store.append, session_event)
                     self._sequence_guard.accept(event)
@@ -568,7 +570,7 @@ class UnixWorkerEventBroker:
             except (ConnectionError, OSError):
                 pass
         finally:
-            if session_id is not None:
+            if session_id is not None and claimed_registration:
                 self._sequence_guard.close_session(session_id)
                 self._registrations.pop(session_id, None)
             self._active_clients = max(0, self._active_clients - 1)
