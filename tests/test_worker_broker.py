@@ -33,7 +33,7 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
         store = JsonlEvidenceStore(tmp_path / "events.jsonl")
-        broker = UnixWorkerEventBroker(socket_path, store)
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
         await broker.start()
         try:
             info = os.lstat(socket_path)
@@ -57,6 +57,9 @@ def test_broker_accepts_valid_worker_event_and_persists_it(tmp_path: Path) -> No
             stored = store.read_events()[0]
             assert stored["path"] == "/login"
             assert stored["event_type"] == "http.request"
+            assert stored["profile_id"] == "web-decoy"
+            assert stored["source_ip"] is None
+            assert stored["source_port"] is None
         finally:
             await broker.close()
         assert not socket_path.exists()
@@ -69,6 +72,7 @@ def test_broker_rejects_wrong_peer_uid(tmp_path: Path) -> None:
         socket_path = tmp_path / "broker.sock"
         broker = UnixWorkerEventBroker(
             socket_path, JsonlEvidenceStore(tmp_path / "events.jsonl"),
+            profile_id="web-decoy",
             allowed_uids={os.geteuid() + 1},
         )
         await broker.start()
@@ -91,7 +95,7 @@ def test_broker_rejects_multiple_sessions_on_one_connection(tmp_path: Path) -> N
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
         store = JsonlEvidenceStore(tmp_path / "events.jsonl")
-        broker = UnixWorkerEventBroker(socket_path, store)
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
         await broker.start()
         try:
             reader, writer = await asyncio.open_unix_connection(socket_path)
@@ -114,7 +118,7 @@ def test_broker_rejects_invalid_sequence_without_persisting(tmp_path: Path) -> N
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
         store = JsonlEvidenceStore(tmp_path / "events.jsonl")
-        broker = UnixWorkerEventBroker(socket_path, store)
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
         await broker.start()
         try:
             reader, writer = await asyncio.open_unix_connection(socket_path)
@@ -137,7 +141,9 @@ def test_broker_refuses_insecure_parent_directory(tmp_path: Path) -> None:
         public_dir.mkdir(mode=0o755)
         public_dir.chmod(0o755)
         broker = UnixWorkerEventBroker(
-            public_dir / "broker.sock", JsonlEvidenceStore(tmp_path / "events.jsonl")
+            public_dir / "broker.sock",
+            JsonlEvidenceStore(tmp_path / "events.jsonl"),
+            profile_id="web-decoy",
         )
         with pytest.raises(WorkerBrokerError, match="private 0700"):
             await broker.start()
@@ -149,7 +155,9 @@ def test_broker_refuses_existing_regular_file_socket_path(tmp_path: Path) -> Non
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
         socket_path.write_text("preserve")
-        broker = UnixWorkerEventBroker(socket_path, JsonlEvidenceStore(tmp_path / "events.jsonl"))
+        broker = UnixWorkerEventBroker(
+            socket_path, JsonlEvidenceStore(tmp_path / "events.jsonl"), profile_id="web-decoy"
+        )
         with pytest.raises(WorkerBrokerError, match="non-private or non-socket"):
             await broker.start()
         assert socket_path.read_text() == "preserve"
@@ -168,7 +176,12 @@ def test_ssh_worker_event_maps_only_normalized_command_name() -> None:
         protocol="ssh",
         command_name="whoami",
     )
-    mapped = UnixWorkerEventBroker._to_session_event(event)
+    broker = UnixWorkerEventBroker(
+        Path("/tmp/mirage-test.sock"),
+        JsonlEvidenceStore(Path("/tmp/mirage-test-events.jsonl")),
+        profile_id="ssh-decoy",
+    )
+    mapped = broker._to_session_event(event)
     assert mapped.path == "/terminal/whoami"
     assert mapped.method == "SSH"
     assert mapped.status_code == 200
@@ -184,6 +197,7 @@ def test_broker_supports_explicit_worker_group_socket_permissions(tmp_path: Path
         broker = UnixWorkerEventBroker(
             socket_path,
             JsonlEvidenceStore(tmp_path / "events.jsonl"),
+            profile_id="web-decoy",
             allowed_uids={os.geteuid()},
             socket_gid=os.getegid(),
         )
@@ -208,8 +222,12 @@ def test_broker_supports_explicit_worker_group_socket_permissions(tmp_path: Path
 def test_broker_refuses_to_unlink_an_active_broker_socket(tmp_path: Path) -> None:
     async def scenario() -> None:
         socket_path = tmp_path / "broker.sock"
-        first = UnixWorkerEventBroker(socket_path, JsonlEvidenceStore(tmp_path / "first.jsonl"))
-        second = UnixWorkerEventBroker(socket_path, JsonlEvidenceStore(tmp_path / "second.jsonl"))
+        first = UnixWorkerEventBroker(
+            socket_path, JsonlEvidenceStore(tmp_path / "first.jsonl"), profile_id="web-decoy"
+        )
+        second = UnixWorkerEventBroker(
+            socket_path, JsonlEvidenceStore(tmp_path / "second.jsonl"), profile_id="web-decoy"
+        )
         await first.start()
         try:
             with pytest.raises(WorkerBrokerError, match="already listening"):
@@ -219,3 +237,25 @@ def test_broker_refuses_to_unlink_an_active_broker_socket(tmp_path: Path) -> Non
             await first.close()
 
     asyncio.run(scenario())
+
+
+def test_broker_uses_its_trusted_profile_not_worker_claim(tmp_path: Path) -> None:
+    broker = UnixWorkerEventBroker(
+        tmp_path / "unused.sock",
+        JsonlEvidenceStore(tmp_path / "events.jsonl"),
+        profile_id="trusted-profile",
+    )
+    event = make_event(str(uuid4()))
+    mapped = broker._to_session_event(event)
+    assert mapped.profile_id == "trusted-profile"
+    assert mapped.source_ip is None
+    assert mapped.source_port is None
+
+
+def test_broker_requires_normalized_trusted_profile_id(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="profile_id"):
+        UnixWorkerEventBroker(
+            tmp_path / "unused.sock",
+            JsonlEvidenceStore(tmp_path / "events.jsonl"),
+            profile_id="../untrusted",
+        )
