@@ -101,7 +101,7 @@ Tests must run in disposable CI or dedicated test hosts. Do not run destructive 
 
 1. [x] Add a declarative sandbox policy model and validation tests; keep it separate from runtime enforcement.
 2. [x] Build a bounded worker-supervisor IPC contract and private Unix-socket evidence broker with broker-owned evidence writes.
-3. Connect HTTP/SSH decoy session handlers to the broker through supervised worker processes.
+3. [ ] Connect HTTP/SSH decoy session handlers to the broker through supervised worker processes and have the supervisor register each accepted client socket before worker startup.
 4. Select and prototype one Linux isolation mechanism on supported Ubuntu versions.
 5. Add positive and negative namespace, filesystem, syscall, and network-boundary tests.
 6. Add per-session lifecycle, resource quotas, crash handling, and cleanup.
