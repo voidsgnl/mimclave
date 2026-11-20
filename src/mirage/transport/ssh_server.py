@@ -169,10 +169,10 @@ class SSHDecoyServer:
         for connection in connections:
             connection.close()  # type: ignore[attr-defined]
         if connections:
-            await asyncio.gather(
-                *(connection.wait_closed() for connection in connections),  # type: ignore[attr-defined]
-                return_exceptions=True,
-            )
+            waiters = [
+                connection.wait_closed() for connection in connections
+            ]  # type: ignore[attr-defined]
+            await asyncio.gather(*waiters, return_exceptions=True)
 
     async def _read_command(self, process: object) -> str | None:
         """Read one bounded command with an absolute line deadline."""
@@ -228,14 +228,16 @@ class SSHDecoyServer:
     async def _handle_process(self, process: object) -> None:
         """Serve one SSH shell or exec channel with isolated virtual state."""
         if self._active_sessions >= self.max_sessions:
-            process.stderr.write("MIRAGE: session capacity reached.\\r\\n")  # type: ignore[attr-defined]
+            stderr = process.stderr  # type: ignore[attr-defined]
+            stderr.write("MIRAGE: session capacity reached.\\r\\n")
             process.exit(1)  # type: ignore[attr-defined]
             return
 
         self._active_sessions += 1
         try:
             if process.subsystem:  # type: ignore[attr-defined]
-                process.stderr.write("MIRAGE: subsystem unavailable.\\r\\n")  # type: ignore[attr-defined]
+                stderr = process.stderr  # type: ignore[attr-defined]
+                stderr.write("MIRAGE: subsystem unavailable.\\r\\n")
                 process.exit(1)  # type: ignore[attr-defined]
                 return
 
@@ -244,7 +246,8 @@ class SSHDecoyServer:
             if process.command is not None:  # type: ignore[attr-defined]
                 command = process.command  # type: ignore[attr-defined]
                 if len(command) > MAX_COMMAND_LENGTH:
-                    process.stderr.write("mirage: input too long\\r\\n")  # type: ignore[attr-defined]
+                    stderr = process.stderr  # type: ignore[attr-defined]
+                    stderr.write("mirage: input too long\\r\\n")
                     process.exit(2)  # type: ignore[attr-defined]
                     return
                 output = await self._record_and_execute(process, terminal, factory, command)
@@ -270,7 +273,8 @@ class SSHDecoyServer:
                 try:
                     command = await self._read_command(process)
                 except ValueError:
-                    process.stdout.write("mirage: input too long\\r\\n")  # type: ignore[attr-defined]
+                    stdout = process.stdout  # type: ignore[attr-defined]
+                    stdout.write("mirage: input too long\\r\\n")
                     process.exit(2)  # type: ignore[attr-defined]
                     return
                 if command is None:
@@ -287,7 +291,8 @@ class SSHDecoyServer:
                 await process.stdout.drain()  # type: ignore[attr-defined]
                 commands_handled += 1
                 if commands_handled >= MAX_COMMANDS_PER_SESSION:
-                    process.stdout.write("MIRAGE: session command limit reached.\\r\\n")  # type: ignore[attr-defined]
+                    stdout = process.stdout  # type: ignore[attr-defined]
+                    stdout.write("MIRAGE: session command limit reached.\\r\\n")
                     break
             process.exit(0)  # type: ignore[attr-defined]
         except Exception:
