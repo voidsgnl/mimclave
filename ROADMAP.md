@@ -267,13 +267,13 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - Strictly rejects shell operators, redirects, pipes, expansions, traversal, excessive input, unsupported options, and unknown commands. No shell, subprocess, host filesystem, or network calls.
 - The local simulator remains the command execution boundary. The experimental SSH adapter described below exposes it only on loopback; it is not a production or public honeypot.
 
-### Experimental SSH transport milestone — 2026-11-20 (CI pending)
+### Experimental SSH transport milestone — 2026-11-20 (CI passed)
 - Added optional AsyncSSH-based `SSHDecoyServer` and `mirage serve-ssh`. The listener requires a dedicated operator-provisioned host key with restrictive file permissions and accepts literal loopback addresses only.
 - Each SSH process/channel receives a fresh in-memory `VirtualTerminal`; no host shell, subprocess, filesystem, network forwarding, SFTP, agent forwarding, or X11 is exposed.
 - Added connection/session caps, login timeout, bounded SSH channel window, per-command absolute input deadline, 512-character command limit, and 100-command interactive session limit.
 - SSH authentication is intentionally disabled for this local deception prototype. The server does not request or store passwords or client keys. It also omits usernames, full command lines, and arguments from evidence; only normalized command names and source/session metadata are recorded.
 - Command output is sent only after the event sink has appended and fsynced the event. Evidence failure exits the SSH process without returning simulated output.
-- Added integration tests for loopback/key policy, remote command execution, interactive per-session filesystem isolation, metadata redaction, and evidence failure. Tests and Ruff have not yet been run locally; GitHub Actions verification is pending.
+- Added tests for loopback/key policy, SSH exec command execution, callback-level per-session filesystem isolation, metadata redaction, and fail-closed evidence handling. GitHub Actions run #353 (run ID `44787629575`) passed the Python 3.12, 3.13, and 3.14 matrices, including tests, benchmark smoke test, and Ruff. Local Ubuntu verification is still pending.
 - This remains a loopback-only prototype. Do not expose it to a LAN or the internet. It is not an isolated sandbox and does not provide independent network enforcement.
 
 ### CI blocker — investigate before release
@@ -289,7 +289,7 @@ Evidence-backed correlation with confidence/provenance, operator API/UI, alertin
 - If local tests pass, rerun or inspect the GitHub Actions workflow and obtain job-level logs before relying on CI.
 
 ### Current boundary and next work
-- Current prototype: loopback HTTP decoy, experimental loopback SSH terminal adapter, hash-chained evidence, evidence verification, heuristic session inspection, and local in-memory terminal simulation. SSH CI verification is pending.
+- Current prototype: loopback HTTP decoy, experimental loopback SSH terminal adapter, hash-chained evidence, evidence verification, heuristic session inspection, and local in-memory terminal simulation. SSH CI passed on Python 3.12, 3.13, and 3.14; local Ubuntu verification is still pending.
 - Still not implemented: production traffic interception, independent enforcement, isolated sandbox execution, management API/dashboard, and production deployment. The SSH transport is experimental and loopback-only; it does not constitute sandbox isolation.
 - Preserve the local evidence log; never overwrite or silently reset it.
 - Continue on `main`; do not create branches unless explicitly requested.
