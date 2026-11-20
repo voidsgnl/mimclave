@@ -39,12 +39,13 @@ Python 3.12+ is required. Install development dependencies with `python -m pip i
 
 ### Run the local HTTP prototype
 
-In one terminal:
+From the repository root, start the prototype with:
 
 ```bash
-mirage validate-config config/prototype-http.toml
-mirage serve-http config/prototype-http.toml --profile-id local-web --host 127.0.0.1 --port 8080 --evidence ./var/mirage/events.jsonl
+./start.sh
 ```
+
+The script validates the configuration, creates a private `var/mirage/` evidence directory, and starts the decoy on `127.0.0.1:8080`. Set `MIRAGE_PORT` to use another local port, for example `MIRAGE_PORT=8081 ./start.sh`. It uses the repository's `.venv/bin/mirage` when available, otherwise the installed `mirage` command.
 
 In another terminal, interact with the decoy:
 
