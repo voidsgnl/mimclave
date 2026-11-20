@@ -425,3 +425,39 @@ def test_broker_binds_protocol_to_supervisor_registration(tmp_path: Path) -> Non
             await broker.close()
 
     asyncio.run(scenario())
+
+
+def test_duplicate_worker_claim_does_not_revoke_active_session(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
+        await broker.start()
+        session_id = str(uuid4())
+        try:
+            await register_session(socket_path, session_id)
+            reader1, writer1 = await asyncio.open_unix_connection(socket_path)
+            first = make_event(session_id, sequence=1)
+            writer1.write(encode_worker_event(first))
+            await writer1.drain()
+            assert json.loads(await reader1.readline())["accepted"] is True
+
+            reader2, writer2 = await asyncio.open_unix_connection(socket_path)
+            duplicate = make_event(session_id, sequence=1)
+            writer2.write(encode_worker_event(duplicate))
+            await writer2.drain()
+            assert json.loads(await reader2.readline())["accepted"] is False
+            writer2.close()
+            await writer2.wait_closed()
+
+            second = make_event(session_id, sequence=2)
+            writer1.write(encode_worker_event(second))
+            await writer1.drain()
+            assert json.loads(await reader1.readline())["accepted"] is True
+            writer1.close()
+            await writer1.wait_closed()
+            assert store.verify().record_count == 2
+        finally:
+            await broker.close()
+
+    asyncio.run(scenario())
