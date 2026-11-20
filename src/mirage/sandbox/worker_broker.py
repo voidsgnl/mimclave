@@ -277,7 +277,7 @@ class UnixWorkerEventBroker:
             if uid != os.geteuid():
                 raise WorkerBrokerError("supervisor UID is not authorized")
             frame = await asyncio.wait_for(
-                reader.readuntil(b"\\n"), timeout=self.client_idle_timeout
+                reader.readuntil(b"\n"), timeout=self.client_idle_timeout
             )
             if len(frame) > MAX_SUPERVISOR_MESSAGE_BYTES:
                 raise WorkerMessageError("supervisor message exceeds the size limit")
@@ -321,11 +321,11 @@ class UnixWorkerEventBroker:
                 "worker_uid": worker_uid,
                 "worker_pid": worker_pid,
             }
-            writer.write(b'{"registered":true}\\n')
+            writer.write(b'{"registered":true}\n')
             await asyncio.wait_for(writer.drain(), timeout=self.client_idle_timeout)
         except (WorkerMessageError, WorkerBrokerError, OSError, ValueError, KeyError, TypeError, TimeoutError):
             try:
-                writer.write(b'{"registered":false,"error":"registration rejected"}\\n')
+                writer.write(b'{"registered":false,"error":"registration rejected"}\n')
                 await writer.drain()
             except (ConnectionError, OSError):
                 pass
