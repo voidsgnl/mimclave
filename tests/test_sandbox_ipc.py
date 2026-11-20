@@ -115,3 +115,13 @@ def test_sequence_guard_bounds_sessions_and_releases_closed_state() -> None:
         guard.accept(event(session_id=second))
     guard.close_session(first)
     guard.accept(event(session_id=second))
+
+
+def test_sequence_guard_can_validate_without_consuming_sequence() -> None:
+    guard = WorkerEventSequenceGuard()
+    session = str(uuid4())
+    first = event(session_id=session, sequence=1)
+    guard.validate(first)
+    guard.validate(first)
+    guard.accept(first)
+    guard.validate(event(session_id=session, sequence=2))
