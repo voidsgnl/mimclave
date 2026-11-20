@@ -15,7 +15,7 @@ from mirage.config.registry import ProfileRegistry
 from mirage.discovery.ports import discover_proc_listeners
 from mirage.emulation.http import HttpDecoy
 from mirage.emulation.terminal import VirtualTerminal
-from mirage.sandbox.worker_broker import UnixWorkerEventBroker, WorkerBrokerError
+from mirage.sandbox.worker_broker import UnixWorkerEventBroker
 from mirage.telemetry.checkpoints import CheckpointError
 from mirage.telemetry.https_anchor import HttpsCheckpointAnchor
 from mirage.telemetry.intelligence import build_activity_report, render_activity_report
@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             print("\\nMIRAGE worker event broker stopped.", flush=True)
             return 130
-        except (EvidenceStoreError, OSError, RuntimeError, ValueError, WorkerBrokerError) as exc:
+        except (EvidenceStoreError, OSError, RuntimeError, ValueError) as exc:
             print(f"Worker event broker failed: {exc}", file=sys.stderr)
             return 2
         return 0
