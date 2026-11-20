@@ -5,6 +5,7 @@ All notable project changes are documented here.
 ## Unreleased
 
 ### Added
+- Added a bounded worker-to-supervisor event IPC contract with strict newline-delimited JSON framing, duplicate/unknown-field rejection, size limits, timestamp/IP/metadata validation, and per-session monotonic sequence enforcement. The codec does not open sockets or grant evidence-file access; a transport and broker process are still future work. GitHub Actions run #377 passed 265 tests, benchmark smoke test, and Ruff on Python 3.12–3.14.
 - Added declarative sandbox policy types for simulation, isolated-worker, and disposable-VM tiers, with bounded resource limits and validation of namespaces, seccomp policy names, privilege restrictions, host-mount/credential prohibitions, and network modes. This is policy modelling only; no namespace, cgroup, seccomp, VM, or traffic-enforcement mechanism is executed yet. Automated tests added; CI verification pending.
 
 ### Added
