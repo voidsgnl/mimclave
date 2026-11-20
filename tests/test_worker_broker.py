@@ -35,6 +35,7 @@ async def register_session(
     *,
     protocol: str = "http",
     worker_uid: int | None = None,
+    worker_pid: int | None = None,
 ) -> None:
     """Register trusted client metadata for the current test worker process."""
     reader, writer = await asyncio.open_unix_connection(
@@ -47,7 +48,7 @@ async def register_session(
         "source_ip": "198.51.100.44",
         "source_port": 45678,
         "worker_uid": os.geteuid() if worker_uid is None else worker_uid,
-        "worker_pid": os.getpid(),
+        "worker_pid": os.getpid() if worker_pid is None else worker_pid,
     }
     writer.write(json.dumps(message).encode("utf-8") + b"\n")
     await writer.drain()
@@ -348,5 +349,69 @@ def test_broker_shutdown_closes_active_worker_connections(tmp_path: Path) -> Non
         writer.close()
         await writer.wait_closed()
         assert not socket_path.exists()
+
+    asyncio.run(scenario())
+
+
+def test_broker_rejects_worker_without_supervisor_registration(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
+        await broker.start()
+        try:
+            reader, writer = await asyncio.open_unix_connection(socket_path)
+            writer.write(encode_worker_event(make_event(str(uuid4()))))
+            await writer.drain()
+            assert json.loads(await reader.readline())["accepted"] is False
+            writer.close()
+            await writer.wait_closed()
+            assert not (tmp_path / "events.jsonl").exists()
+        finally:
+            await broker.close()
+
+    asyncio.run(scenario())
+
+
+def test_broker_binds_worker_pid_to_supervisor_registration(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
+        await broker.start()
+        try:
+            event = make_event(str(uuid4()))
+            await register_session(socket_path, event.session_id, worker_pid=os.getpid() + 1)
+            reader, writer = await asyncio.open_unix_connection(socket_path)
+            writer.write(encode_worker_event(event))
+            await writer.drain()
+            assert json.loads(await reader.readline())["accepted"] is False
+            writer.close()
+            await writer.wait_closed()
+            assert not (tmp_path / "events.jsonl").exists()
+        finally:
+            await broker.close()
+
+    asyncio.run(scenario())
+
+
+def test_broker_binds_protocol_to_supervisor_registration(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        socket_path = tmp_path / "broker.sock"
+        store = JsonlEvidenceStore(tmp_path / "events.jsonl")
+        broker = UnixWorkerEventBroker(socket_path, store, profile_id="web-decoy")
+        await broker.start()
+        try:
+            event = make_event(str(uuid4()))
+            await register_session(socket_path, event.session_id, protocol="ssh")
+            reader, writer = await asyncio.open_unix_connection(socket_path)
+            writer.write(encode_worker_event(event))
+            await writer.drain()
+            assert json.loads(await reader.readline())["accepted"] is False
+            writer.close()
+            await writer.wait_closed()
+            assert not (tmp_path / "events.jsonl").exists()
+        finally:
+            await broker.close()
 
     asyncio.run(scenario())
